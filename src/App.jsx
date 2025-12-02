@@ -1,0 +1,562 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from './supabase';
+
+// === TEXTOS & TRADUCCIONES ===
+const dict = {
+  en: {
+    subtitle: "POLYMATH FOCUS SYSTEM",
+    projLabel: "PROJECT / MISSION",
+    descLabel: "SYSTEM INSTRUCTIONS (KNOWLEDGE)",
+    addInst: "Add instruction (+)",
+    placeholderInst: "e.g., Don't touch CSS, focus on Logic...",
+    startBtn: "INITIATE LOCK_IN",
+    workingOn: "CURRENTLY EXECUTING:",
+    timeElapsed: "SESSION TIME",
+    finishBtn: "CLOCK OUT / COMPLETE",
+    placeholderProj: "Select or type project...",
+    emptyError: "SYSTEM ERROR: DEFINE PARAMETERS FIRST"
+  },
+  es: {
+    subtitle: "SISTEMA DE ENFOQUE POLÍMATA",
+    projLabel: "PROYECTO / MISIÓN",
+    descLabel: "INSTRUCCIONES DEL SISTEMA (KNOWLEDGE)",
+    addInst: "Agregar instrucción (+)",
+    placeholderInst: "ej. No tocar CSS, solo Lógica...",
+    startBtn: "INICIAR LOCK_IN",
+    workingOn: "EJECUTANDO ACTUALMENTE:",
+    timeElapsed: "TIEMPO DE SESIÓN",
+    finishBtn: "FINALIZAR / CLOCK OUT",
+    placeholderProj: "Selecciona o escribe proyecto...",
+    emptyError: "ERROR DE SISTEMA: DEFINE PARÁMETROS"
+  }
+};
+
+function App() {
+  // AUTH SYSTEM
+  const handleAuth = async (email, password) => {
+    let result = {}; // Inicializamos vacío para evitar crash
+    
+    if (authView === 'login') {
+      result = await supabase.auth.signInWithPassword({ email, password });
+    } else if (authView === 'register') {
+      result = await supabase.auth.signUp({ email, password });
+      if (!result.error) showToast("CONFIRMATION EMAIL SENT", 'success');
+    } else if (authView === 'recovery') {
+      result = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://lock.dezz.cloud'
+      });
+      if (!result.error) {
+         showToast("RECOVERY LINK SENT", 'success');
+         setAuthView('login');
+         return; 
+      }
+    } else if (authView === 'update_password') {
+      // --> AQUÍ ESTÁ LO QUE FALTABA
+      result = await supabase.auth.updateUser({ password: password });
+      if (!result.error) {
+        showToast("PASSWORD UPDATED SUCCESSFULLY", 'success');
+        setAuthView('login');
+        return;
+      }
+    }
+
+    if (result.error) showToast(result.error.message.toUpperCase(), 'warn');
+  };
+
+  // CEREBRO AUTOMÁTICO: Si el proyecto es nuevo, lo guardamos en BD
+  const saveToBrain = async (title) => {
+    // Verificamos si ya existe para no duplicar
+    const exists = tasks.some(t => t.title.toLowerCase() === title.toLowerCase());
+    if (!exists && title !== 'NEW_FLOW') {
+      const { data, error } = await supabase.from('tasks').insert({
+        user_id: session.user.id,
+        title: title,
+        status: 'pending' // Siempre 'pending' para que salga en el select luego
+      }).select();
+      
+      if (!error && data) setTasks([data[0], ...tasks]); // Actualizamos localmente
+    }
+  };
+
+  // === STATE MANAGEMENT ===
+  const [session, setSession] = useState(null)
+  const [tasks, setTasks] = useState([]) // Tu lista de cerebro "Knowledge"
+  // Controla qué formulario vemos: 'login', 'register', 'recovery'
+  const [authView, setAuthView] = useState('login');
+  // UI STATES
+  const [showBrain, setShowBrain] = useState(false); // Modal del Cerebro
+  const [toast, setToast] = useState({ show: false, msg: '', type: 'info' }); // Toast Custom
+
+  // HELPER: NOTIFICACIONES (Reemplaza los alerts)
+  const showToast = (msg, type = 'info') => {
+    setToast({ show: true, msg, type });
+    setTimeout(() => setToast({ ...toast, show: false }), 3000);
+  };
+
+  // HELPER: Eliminar tarea de la BD
+  const killTask = async (id) => {
+    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    if (!error) {
+      setTasks(tasks.filter(t => t.id !== id));
+      showToast('KNOWLEDGE NODE DELETED', 'warn');
+    }
+  };
+
+  // HELPER: Seleccionar tarea del cerebro
+  const selectTaskFromBrain = (taskTitle) => {
+    setProject(taskTitle);
+    setShowBrain(false);
+    // showToast(`TARGET ACQUIRED: ${taskTitle}`, 'success'); // Opcional
+  };
+
+  // Efecto para escuchar la Auth al cargar
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchTasks();
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Detectamos si viene de recuperar contraseña
+      if (event === 'PASSWORD_RECOVERY') {
+        setAuthView('update_password');
+      }
+      setSession(session);
+      if (session) fetchTasks();
+    });
+
+    // Recuperar memoria local (Si se cerró la pestaña)
+    const savedState = JSON.parse(localStorage.getItem('dezzSession'));
+    if (savedState) {
+      setProject(savedState.project);
+      setInstructions(savedState.instructions);
+      setStartTime(savedState.startTime);
+      setIsLocked(true); 
+    }
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+
+  // Función para traer tu lista de cosas por hacer
+  const fetchTasks = async () => {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+    
+    if (data) setTasks(data)
+  }
+
+  
+  const [lang, setLang] = useState('en'); // 'en' | 'es'
+  const [isLocked, setIsLocked] = useState(false);
+  
+  // Data Inputs
+  const [project, setProject] = useState('');
+  const [currentInstruction, setCurrentInstruction] = useState('');
+  const [instructions, setInstructions] = useState([]); // Array de knowledge
+  
+  // Timer Logic
+  const [startTime, setStartTime] = useState(null);
+  const [now, setNow] = useState(null);
+
+  const t = dict[lang]; // Shortcut para traducción
+
+  // Efecto del Timer
+  useEffect(() => {
+    let interval = null;
+    if (isLocked) {
+      interval = setInterval(() => {
+        setNow(Date.now());
+      }, 1000);
+    } else {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [isLocked]);
+
+  // === HANDLERS ===
+  const addInstruction = () => {
+    if (!currentInstruction.trim()) return;
+    setInstructions([...instructions, currentInstruction]);
+    setCurrentInstruction('');
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') addInstruction();
+  };
+
+  const deleteInstruction = (index) => {
+    const newIns = [...instructions];
+    newIns.splice(index, 1);
+    setInstructions(newIns);
+  };
+
+  const handleLockIn = () => {
+    if (!project.trim() || project === 'NEW_FLOW') {
+      showToast(t.emptyError, 'warn'); // Usa Toast
+      return;
+    }
+    
+    // Guardamos en el cerebro si es nuevo
+    saveToBrain(project); 
+
+    const start = Date.now();
+    setStartTime(start);
+    setNow(start);
+    setIsLocked(true);
+    
+    localStorage.setItem('dezzSession', JSON.stringify({
+      project,
+      instructions,
+      startTime: start
+    }));
+  };
+
+  const handleClockOut = async () => {
+    // Calculamos duración en segundos
+    const duration = Math.floor((Date.now() - startTime) / 1000);
+    const confirmed = window.confirm(lang === 'en' ? "Terminate Session & Save?" : "¿Terminar y Guardar?");
+    
+    if (confirmed) {
+      // 1. Enviar a Supabase
+      const { error } = await supabase.from('sessions').insert({
+        user_id: session.user.id,
+        // Si el proyecto coincide con una tarea, podrías mandar task_id, 
+        // pero por ahora mandamos el nombre en el log para simplificar.
+        log_notes: `Project: ${project} // Duration: ${duration}s`, 
+        start_time: new Date(startTime).toISOString(),
+        end_time: new Date().toISOString(),
+        duration_seconds: duration
+      });
+
+      if (error) console.error('Error saving session:', error);
+
+      // 2. Limpiar todo
+      setIsLocked(false);
+      setInstructions([]);
+      setProject('');
+      localStorage.removeItem('dezzSession'); // Borramos memoria temporal
+    }
+  };
+
+  // Formateador de Tiempo HH:MM:SS
+  const formatTime = (start, current) => {
+    if (!start || !current) return "00:00:00";
+    const diff = Math.floor((current - start) / 1000);
+    const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+    const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+    const s = (diff % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  };
+
+  // === VISTA DE ACCESO DINÁMICA (4 ESTADOS) ===
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-dezz-bg flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Fondo sutil */}
+        <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" style={{backgroundImage: 'linear-gradient(#141414 1px, transparent 1px), linear-gradient(90deg, #141414 1px, transparent 1px)', backgroundSize: '40px 40px'}}></div>
+
+        <div className="z-10 w-full max-w-sm flex flex-col items-center bg-dezz-surface border border-dezz-accent/20 p-8 shadow-2xl animate-fade-in-up">
+          
+          <h2 className="font-space text-2xl mb-1 text-white tracking-tight">
+            DEZZ<span className="text-dezz-accent">LOCK</span> ACCESS
+          </h2>
+          <p className="font-mono text-[10px] text-gray-500 mb-6 uppercase tracking-[0.2em]">
+            {authView === 'login' && 'IDENTIFY YOURSELF'}
+            {authView === 'register' && 'INIT NEW USER'}
+            {authView === 'recovery' && 'RECOVERY MODE'}
+            {authView === 'update_password' && 'SECURE NEW PASSWORD'}
+          </p>
+          
+          {/* El Email solo se muestra si NO estamos actualizando la pass */}
+          {authView !== 'update_password' && (
+             <input id="email" type="email" placeholder="EMAIL ADDRESS" className="w-full bg-dezz-bg p-3 border border-dezz-dim text-white outline-none focus:border-dezz-accent font-mono text-xs mb-3"/>
+          )}
+          
+          {/* La Contraseña solo se muestra si NO estamos pidiendo el link de recuperación */}
+          {authView !== 'recovery' && (
+             <input id="pass" type="password" placeholder={authView === 'update_password' ? "ENTER NEW PASSWORD" : "PASSPHRASE"} className="w-full bg-dezz-bg p-3 border border-dezz-dim text-white outline-none focus:border-dezz-accent font-mono text-xs mb-3"/>
+          )}
+          
+          {/* Action Button */}
+          <button 
+            onClick={() => handleAuth(
+              authView !== 'update_password' ? document.getElementById('email').value : null, 
+              authView !== 'recovery' ? document.getElementById('pass').value : null
+            )}
+            className="w-full bg-dezz-accent text-black font-bold py-3 hover:bg-white transition text-xs tracking-[0.2em] mb-4 uppercase"
+          >
+            {authView === 'login' && 'LOGIN'}
+            {authView === 'register' && 'CREATE ACCOUNT'}
+            {authView === 'recovery' && 'SEND RESET LINK'}
+            {authView === 'update_password' && 'SAVE NEW PASSWORD'}
+          </button>
+
+          {/* Toggle Menu */}
+          <div className="flex justify-between w-full text-[10px] font-mono text-gray-500 uppercase tracking-widest cursor-pointer select-none">
+             {authView === 'login' ? (
+                <>
+                  <span onClick={() => setAuthView('register')} className="hover:text-dezz-accent hover:underline">CREATE ID</span>
+                  <span onClick={() => setAuthView('recovery')} className="hover:text-white hover:underline">LOST PASS?</span>
+                </>
+             ) : (
+                <span onClick={() => setAuthView('login')} className="hover:text-dezz-accent w-full text-center hover:underline">BACK TO LOGIN</span>
+             )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // === VISTA PRINCIPAL (UI) ===
+  return (
+
+    <div className="w-screen h-screen bg-dezz-bg text-gray-200 font-mono flex flex-col items-center justify-between overflow-hidden relative">
+      
+      {/* Grid Background */}
+      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" 
+          style={{backgroundImage: 'linear-gradient(#141414 1px, transparent 1px), linear-gradient(90deg, #141414 1px, transparent 1px)', backgroundSize: '40px 40px'}}>
+      </div>
+
+      {/* HEADER NAVBAR */}
+      <header className="w-full max-w-4xl p-6 flex justify-between items-center z-10">
+        <div className="flex items-center gap-3">
+            <div className="w-3 h-3 bg-dezz-accent rounded-full animate-pulse shadow-[0_0_10px_#00ff9b]"></div>
+            <h1 className="font-space font-bold text-2xl tracking-tighter">
+              dezz<span className="text-dezz-accent">Lock</span>
+            </h1>
+        </div>
+        
+        <div className="flex items-center gap-4 text-sm font-bold text-dezz-accent/50 cursor-pointer select-none">
+          {/* IDENTITY MODULE */}
+          <div className="hidden md:flex items-center gap-2 pr-4 border-r border-dezz-accent/20">
+            <i className="fa-solid fa-id-badge text-dezz-dim"></i>
+            <span className="font-mono text-[10px] text-gray-400 uppercase tracking-widest hover:text-white transition">
+              ID: {session.user.email.split('@')[0]} {/* Muestra user antes del @ */}
+            </span>
+          </div>
+
+          {/* LOGOUT BUTTON */}
+          <button 
+            onClick={async () => { await supabase.auth.signOut(); setSession(null); }}
+            className="hover:text-red-500 text-xs font-mono mr-2 transition-colors uppercase tracking-widest"
+          >
+            [ KILL_SESSION ]
+          </button>
+
+          {/* IDIOMA */}
+          <div className="flex gap-2">
+            <span onClick={() => setLang('en')} className={`${lang === 'en' ? 'text-dezz-accent' : 'hover:text-white transition'}`}>EN</span>
+            <span className="text-dezz-surface">|</span>
+            <span onClick={() => setLang('es')} className={`${lang === 'es' ? 'text-dezz-accent' : 'hover:text-white transition'}`}>ES</span>
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTAINER */}
+      <main className="z-10 w-full max-w-2xl flex-grow flex flex-col justify-center p-6">
+        
+        {/* === VISTA: CONFIGURACIÓN (IDLE) === */}
+        {!isLocked && (
+          <div className="flex flex-col gap-8 animate-fade-in-up">
+            <div className="text-center mb-6">
+              <h2 className="font-space text-4xl font-bold text-white mb-2 uppercase">{t.startBtn}</h2>
+              <p className="text-gray-500 text-sm tracking-widest uppercase border-b border-dezz-accent/20 pb-4 inline-block px-10">
+                {t.subtitle}
+              </p>
+            </div>
+
+            {/* SMART PROJECT INPUT */}
+            <div className="bg-dezz-surface border border-dezz-surface p-6 rounded-sm shadow-xl focus-within:border-dezz-accent/50 transition duration-300 relative group">
+              <label className="block text-dezz-accent text-xs font-bold mb-3 tracking-widest flex justify-between items-center">
+                <span>{t.projLabel}</span>
+                {/* Botón para abrir el Modal Brain */}
+                <button 
+                  onClick={() => setShowBrain(true)} 
+                  className="text-[10px] text-gray-500 hover:text-white flex items-center gap-2 transition"
+                  title="OPEN TASK ARCHIVE"
+                >
+                  <i className="fa-solid fa-database"></i> ACCESS ARCHIVE
+                </button>
+              </label>
+              
+              <div className="flex gap-2 items-center">
+                 <input 
+                  type="text" 
+                  value={project}
+                  onChange={(e) => setProject(e.target.value)}
+                  placeholder={t.placeholderProj}
+                  className="w-full bg-transparent text-xl text-white outline-none placeholder-gray-700 font-space font-bold"
+                  list="brain-suggestions" // HTML Nativo Autocomplete
+                />
+                {/* Indicador visual si existe en DB */}
+                {tasks.some(t => t.title === project) && (
+                   <i className="fa-solid fa-check-circle text-dezz-accent text-lg" title="KNOWN ENTITY"></i>
+                )}
+              </div>
+
+              {/* Datalist nativo para autocompletado rápido */}
+              <datalist id="brain-suggestions">
+                {tasks.map(t => <option key={t.id} value={t.title} />)}
+              </datalist>
+            </div>
+
+            {/* Instructions Input (The Knowledge Base) */}
+            <div className="bg-dezz-surface border border-dezz-surface p-6 rounded-sm shadow-xl">
+              <label className="block text-dezz-accent text-xs font-bold mb-3 tracking-widest uppercase flex justify-between">
+                <span>{t.descLabel}</span>
+                <span className="text-xs text-gray-600">{instructions.length} IN STACK</span>
+              </label>
+              
+              <div className="flex gap-2 mb-4">
+                <input 
+                  type="text" 
+                  value={currentInstruction}
+                  onChange={(e) => setCurrentInstruction(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  placeholder={t.placeholderInst}
+                  className="w-full bg-dezz-bg/50 text-white p-3 rounded-sm border border-transparent focus:border-dezz-accent/30 outline-none text-sm transition"
+                />
+                <button 
+                  onClick={addInstruction}
+                  className="bg-dezz-accent text-dezz-bg font-bold px-4 rounded-sm hover:bg-white hover:scale-105 transition duration-200"
+                >
+                  <i className="fa-solid fa-plus"></i>
+                </button>
+              </div>
+
+              {/* Instruction Tags Display */}
+              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+                {instructions.map((inst, idx) => (
+                  <div key={idx} className="group flex justify-between items-center bg-dezz-bg p-3 border-l-2 border-dezz-accent/20 hover:border-dezz-accent transition-all">
+                    <span className="text-sm text-gray-300 font-medium font-mono">
+                      <span className="text-dezz-accent mr-2">{'>'}</span> {inst}
+                    </span>
+                    <button onClick={() => deleteInstruction(idx)} className="text-red-500 opacity-0 group-hover:opacity-100 hover:text-white transition">
+                      <i className="fa-solid fa-times"></i>
+                    </button>
+                  </div>
+                ))}
+                {instructions.length === 0 && (
+                   <div className="text-gray-700 text-xs italic text-center py-2 opacity-50">Empty Buffer</div>
+                )}
+              </div>
+            </div>
+
+            {/* BIG TRIGGER BUTTON */}
+            <button 
+              onClick={handleLockIn}
+              className="mt-4 bg-white text-black font-space font-black text-xl py-5 hover:bg-dezz-accent hover:shadow-[0_0_20px_#00ff9b66] transition-all transform active:scale-95 tracking-widest uppercase"
+            >
+              <i className="fa-solid fa-lock mr-3"></i> {t.startBtn}
+            </button>
+          </div>
+        )}
+
+        {/* === VISTA: LOCKED IN (FOCUS MODE) === */}
+        {isLocked && (
+          <div className="flex flex-col items-center justify-center h-full animate-in fade-in duration-700">
+            
+            {/* Project Indicator */}
+            <div className="mb-10 text-center">
+              <h3 className="text-dezz-accent text-xs tracking-[0.3em] font-bold uppercase mb-2">{t.workingOn}</h3>
+              <h2 className="text-white text-5xl font-space font-bold uppercase tracking-tight relative inline-block">
+                {project}
+                <div className="absolute -right-6 -top-2">
+                   <div className="w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+                </div>
+              </h2>
+            </div>
+
+            {/* THE CLOCK */}
+            <div className="mb-12 font-mono text-7xl md:text-9xl font-thin text-white tabular-nums tracking-tighter opacity-90 select-none">
+              {formatTime(startTime, now)}
+            </div>
+
+            {/* Active Instructions List (Read Only) */}
+            <div className="w-full max-w-lg mb-12">
+               {instructions.length > 0 ? (
+                 <div className="flex flex-col gap-3">
+                   {instructions.map((inst, idx) => (
+                      <div key={idx} className="bg-dezz-surface/50 border border-dezz-dim p-4 flex items-start gap-3 rounded-sm">
+                        <i className="fa-solid fa-check-circle text-dezz-accent mt-1"></i>
+                        <span className="text-gray-300 font-mono text-sm line-clamp-2 leading-relaxed">
+                          {inst}
+                        </span>
+                      </div>
+                   ))}
+                 </div>
+               ) : (
+                 <div className="text-gray-600 text-center uppercase tracking-widest text-xs">Pure Focus - No extra instructions</div>
+               )}
+            </div>
+
+            {/* UNLOCK */}
+            <button 
+              onDoubleClick={handleClockOut}
+              className="group flex flex-col items-center text-gray-500 hover:text-white transition duration-500"
+            >
+              <i className="fa-solid fa-lock-open text-3xl mb-2 group-hover:text-red-500 transition duration-300"></i>
+              <span className="text-xs tracking-widest uppercase group-hover:tracking-[0.3em] transition-all">
+                Double Click to {t.finishBtn}
+              </span>
+            </button>
+          </div>
+        )}
+
+      </main>
+
+      {/* FOOTER */}
+      <footer className="z-10 w-full p-4 text-center text-[10px] text-gray-700 font-mono uppercase tracking-widest">
+        SYSTEM ID: DEZZ_LOCK_V1.0 // <span className="text-dezz-accent">DEVELOPED BY <a href="https://dezz.cloud" target="_blank" rel="noopener noreferrer">dezzHub</a></span>
+      </footer>
+
+      {/* === COMPONENTE VISUAL: NOTIFICACIONES (TOAST) === */}
+      <div className={`fixed top-6 right-6 z-[60] transition-all duration-300 transform ${toast.show ? 'translate-y-0 opacity-100' : '-translate-y-10 opacity-0 pointer-events-none'}`}>
+        <div className={`flex items-center gap-3 px-6 py-4 rounded-sm shadow-[0_0_30px_rgba(0,0,0,0.5)] border-l-4 font-mono text-xs uppercase tracking-widest font-bold
+          ${toast.type === 'warn' ? 'bg-[#2a0000] border-red-500 text-red-500' : 'bg-dezz-surface border-dezz-accent text-dezz-accent'}`}>
+          <i className={`fa-solid ${toast.type === 'warn' ? 'fa-triangle-exclamation' : 'fa-check-square'}`}></i>
+          {toast.msg}
+        </div>
+      </div>
+
+      {/* === COMPONENTE VISUAL: BRAIN MANAGER MODAL === */}
+      {showBrain && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-dezz-bg border border-dezz-dim w-full max-w-lg shadow-2xl rounded-sm flex flex-col max-h-[80vh]">
+            {/* Header Modal */}
+            <div className="p-4 border-b border-dezz-dim flex justify-between items-center bg-dezz-surface">
+              <h3 className="font-space font-bold text-white text-lg tracking-tight">KNOWLEDGE BASE <span className="text-dezz-accent">ARCHIVE</span></h3>
+              <button onClick={() => setShowBrain(false)} className="text-gray-500 hover:text-white"><i className="fa-solid fa-times text-xl"></i></button>
+            </div>
+            
+            {/* Body Lista */}
+            <div className="p-2 overflow-y-auto custom-scrollbar flex-1">
+              {tasks.length > 0 ? (
+                tasks.map(task => (
+                  <div key={task.id} className="group flex justify-between items-center p-4 border-b border-dezz-dim/30 hover:bg-dezz-surface/50 transition">
+                    <div 
+                      onClick={() => selectTaskFromBrain(task.title)}
+                      className="cursor-pointer flex-1"
+                    >
+                      <h4 className="font-bold font-space text-white group-hover:text-dezz-accent transition">{task.title}</h4>
+                      <p className="text-[10px] text-gray-500 font-mono">{new Date(task.created_at).toLocaleDateString()} // STATUS: {task.status}</p>
+                    </div>
+                    <button onClick={() => killTask(task.id)} className="text-red-900 group-hover:text-red-500 transition px-2"><i className="fa-solid fa-trash"></i></button>
+                  </div>
+                ))
+              ) : (
+                <div className="p-10 text-center text-gray-600 font-mono text-xs">NO DATA IN SECTOR 01</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
