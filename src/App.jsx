@@ -50,16 +50,13 @@ const dict = {
 function App() {
   // AUTH SYSTEM
   const handleAuth = async (e) => {
-    // 1. PREVENCIÓN DE RECARGA (CRÍTICO PARA ELECTRON)
     if (e) e.preventDefault();
     
     setLoading(true);
 
-    // Capturamos valores asegurando que existan
     const emailRef = document.getElementById('email');
     const passRef = document.getElementById('pass');
     
-    // Validación defensiva
     if (!emailRef || (authView !== 'recovery' && !passRef)) {
        showToast("SYSTEM ERROR: INPUTS NOT FOUND", 'warn');
        setLoading(false);
@@ -72,7 +69,6 @@ function App() {
     let result = {};
 
     try {
-      // Switch de Lógica Auth
       if (authView === 'login') {
         result = await supabase.auth.signInWithPassword({ email, password });
       } else if (authView === 'register') {
@@ -94,24 +90,20 @@ function App() {
         }
       }
 
-      // Manejo de Error de Supabase
       if (result.error) throw result.error;
 
     } catch (error) {
-      console.error(error); // Para debug interno
-      showToast(error.message.toUpperCase(), 'warn'); // Feedback al usuario
+      console.error(error); 
+      showToast(error.message.toUpperCase(), 'warn');
     } finally {
-      setLoading(false); // Liberar interfaz
+      setLoading(false);
     }
   };
 
-  // CEREBRO AUTOMÁTICO: Si el proyecto es nuevo, lo guardamos en BD
   const saveToBrain = async (title) => {
-    // 1. Buscamos si ya existe en memoria local
     const existing = tasks.find(t => t.title.toLowerCase() === title.toLowerCase());
     if (existing) return existing.id;
 
-    // 2. Si es nuevo, lo creamos
     if (title !== 'NEW_FLOW') {
       const { data, error } = await supabase.from('tasks').insert({
         user_id: session.user.id,
@@ -121,7 +113,7 @@ function App() {
       
       if (!error && data) {
         setTasks([data[0], ...tasks]);
-        return data[0].id; // Retornamos el nuevo ID
+        return data[0].id;
       }
     }
     return null;
@@ -129,28 +121,23 @@ function App() {
 
   // === STATE MANAGEMENT ===
   const [session, setSession] = useState(null)
-  const [tasks, setTasks] = useState([]) // Tu lista de cerebro "Knowledge"
+  const [tasks, setTasks] = useState([]) 
   const [authView, setAuthView] = useState('login');
-  // UI STATES
-  const [showBrain, setShowBrain] = useState(false); // Modal del Cerebro
-  const [toast, setToast] = useState({ show: false, msg: '', type: 'info' }); // Toast Custom
-  // LOGIC STATES EXTENDED
-  const [currentTaskId, setCurrentTaskId] = useState(null); // Para vincular FK en DB
-  const [sessionLog, setSessionLog] = useState(''); // Lo que escribas al salir
+  const [showBrain, setShowBrain] = useState(false);
+  const [toast, setToast] = useState({ show: false, msg: '', type: 'info' });
+  const [currentTaskId, setCurrentTaskId] = useState(null); 
+  const [sessionLog, setSessionLog] = useState(''); 
   const [loading, setLoading] = useState(false); 
-  
-  // MODAL STATES
-  const [showClockOutModal, setShowClockOutModal] = useState(false); // Modal de Salida
-  const [showStats, setShowStats] = useState(false); // Modal de Estadísticas
-  const [history, setHistory] = useState([]); // Historial de sesiones
+  const [showClockOutModal, setShowClockOutModal] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [markAsDone, setMarkAsDone] = useState(false);
 
-  // HELPER: NOTIFICACIONES (Reemplaza los alerts)
   const showToast = (msg, type = 'info') => {
     setToast({ show: true, msg, type });
     setTimeout(() => setToast({ ...toast, show: false }), 3000);
   };
 
-  // HELPER: Eliminar tarea de la BD
   const killTask = async (id) => {
     const { error } = await supabase.from('tasks').delete().eq('id', id);
     if (!error) {
@@ -159,15 +146,13 @@ function App() {
     }
   };
 
-  // HELPER: Seleccionar tarea del cerebro
   const selectTaskFromBrain = (task) => {
     setProject(task.title);
-    setCurrentTaskId(task.id); // Guardamos el ID real
-    setInstructions(task.description ? [task.description] : []); // Opcional: Cargar nota guardada
+    setCurrentTaskId(task.id);
+    setInstructions(task.description ? [task.description] : []); 
     setShowBrain(false);
   };
 
-  // Efecto para escuchar la Auth al cargar
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -175,7 +160,6 @@ function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Detectamos si viene de recuperar contraseña
       if (event === 'PASSWORD_RECOVERY') {
         setAuthView('update_password');
       }
@@ -183,7 +167,6 @@ function App() {
       if (session) fetchTasks();
     });
 
-    // Recuperar memoria local (Si se cerró la pestaña)
     const savedState = JSON.parse(localStorage.getItem('dezzSession'));
     if (savedState) {
       setProject(savedState.project);
@@ -195,8 +178,6 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-
-  // Función para traer tu lista de cosas por hacer
   const fetchTasks = async () => {
     const { data, error } = await supabase
       .from('tasks')
@@ -211,18 +192,15 @@ function App() {
   const [lang, setLang] = useState('en'); // 'en' | 'es'
   const [isLocked, setIsLocked] = useState(false);
   
-  // Data Inputs
   const [project, setProject] = useState('');
   const [currentInstruction, setCurrentInstruction] = useState('');
-  const [instructions, setInstructions] = useState([]); // Array de knowledge
+  const [instructions, setInstructions] = useState([]); 
   
-  // Timer Logic
   const [startTime, setStartTime] = useState(null);
   const [now, setNow] = useState(null);
 
-  const t = dict[lang]; // Shortcut para traducción
+  const t = dict[lang];
 
-  // Efecto del Timer
   useEffect(() => {
     let interval = null;
     if (isLocked) {
@@ -235,7 +213,6 @@ function App() {
     return () => clearInterval(interval);
   }, [isLocked]);
 
-  // === HANDLERS ===
   const addInstruction = () => {
     if (!currentInstruction.trim()) return;
     setInstructions([...instructions, currentInstruction]);
@@ -258,7 +235,6 @@ function App() {
       return;
     }
 
-    // Buscamos o Creamos el ID de la tarea
     let finalTaskId = currentTaskId;
     if (!finalTaskId) {
       finalTaskId = await saveToBrain(project);
@@ -270,22 +246,19 @@ function App() {
     setNow(start);
     setIsLocked(true);
     
-    // Guardamos state recuperable
     localStorage.setItem('dezzSession', JSON.stringify({
       project,
-      currentTaskId: finalTaskId, // Guardamos ID también
+      currentTaskId: finalTaskId,
       instructions,
       startTime: start
     }));
   };
 
   const handleClockOut = async () => {
-    // Calculamos duración en segundos
     const duration = Math.floor((Date.now() - startTime) / 1000);
     const confirmed = window.confirm(lang === 'en' ? "Terminate Session & Save?" : "¿Terminar y Guardar?");
     
     if (confirmed) {
-      // 1. Enviar a Supabase
       const { error } = await supabase.from('sessions').insert({
         user_id: session.user.id,
         log_notes: `Project: ${project} // Duration: ${duration}s`, 
@@ -296,11 +269,10 @@ function App() {
 
       if (error) console.error('Error saving session:', error);
 
-      // 2. Limpiar todo
       setIsLocked(false);
       setInstructions([]);
       setProject('');
-      localStorage.removeItem('dezzSession'); // Borramos memoria temporal
+      localStorage.removeItem('dezzSession'); 
     }
   };
 
@@ -318,7 +290,6 @@ function App() {
     if (data) setHistory(data);
   };
 
-  // Formateador de Tiempo HH:MM:SS
   const formatTime = (start, current) => {
     if (!start || !current) return "00:00:00";
     const diff = Math.floor((current - start) / 1000);
@@ -331,40 +302,47 @@ function App() {
   const confirmEndSession = async () => {
     const duration = Math.floor((Date.now() - startTime) / 1000);
     
-    // 1. Enviar a Supabase
     const { error } = await supabase.from('sessions').insert({
       user_id: session.user.id,
-      task_id: currentTaskId, // AHORA SÍ ESTÁ VINCULADO
-      log_notes: sessionLog,  // EL RESUMEN DEL USUARIO
+      task_id: currentTaskId, 
+      log_notes: sessionLog,
       start_time: new Date(startTime).toISOString(),
       end_time: new Date().toISOString(),
       duration_seconds: duration
     });
 
-    if (error) {
-      console.error(error);
-      showToast("SAVE FAILED - CHECK CONSOLE", "warn");
-    } else {
-      showToast("SESSION LOGGED SECURELY", "success");
+    if (markAsDone && currentTaskId) {
+       await supabase.from('tasks')
+         .update({ status: 'done' })
+         .eq('id', currentTaskId);
+       
+       setTasks(tasks.map(t => t.id === currentTaskId ? { ...t, status: 'done' } : t));
     }
 
-    // Limpieza
+    if (error) {
+      console.error(error);
+      showToast("SAVE FAILED", "warn");
+    } else {
+      showToast("SESSION SAVED", "success");
+    }
+
     setIsLocked(false);
     setShowClockOutModal(false);
     setInstructions([]);
     setProject('');
     setCurrentTaskId(null);
     setSessionLog('');
+    setMarkAsDone(false); 
     localStorage.removeItem('dezzSession');
   };
 
-  // === VISTA DE ACCESO DINÁMICA ===
+  // === VISTA DE ACCESO ===
   if (!session) {
     return (
       <div className="min-h-screen bg-dezz-bg flex items-center justify-center p-4 relative overflow-hidden select-none">
         <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" style={{backgroundImage: 'linear-gradient(#141414 1px, transparent 1px), linear-gradient(90deg, #141414 1px, transparent 1px)', backgroundSize: '40px 40px'}}></div>
 
-        {/* FORM OBLIGATORIO: Permite usar la tecla ENTER */}
+        {/* FORM */}
         <form 
            onSubmit={handleAuth}
            className="z-10 w-full max-w-sm flex flex-col items-center bg-dezz-surface border border-dezz-accent/20 p-8 shadow-2xl animate-fade-in-up"
@@ -422,12 +400,12 @@ function App() {
 
     <div className="w-screen h-screen bg-dezz-bg text-gray-200 font-mono flex flex-col items-center justify-between overflow-hidden relative">
       
-      {/* Grid Background */}
+      {/* BACKGROUND GRID */}
       <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" 
           style={{backgroundImage: 'linear-gradient(#141414 1px, transparent 1px), linear-gradient(90deg, #141414 1px, transparent 1px)', backgroundSize: '40px 40px'}}>
       </div>
 
-      {/* HEADER NAVBAR */}
+      {/* HEADER */}
       <header className="w-full max-w-4xl p-6 flex justify-between items-center z-10">
         <div className="flex items-center gap-3">
             <div className="w-3 h-3 bg-dezz-accent rounded-full animate-pulse shadow-[0_0_10px_#00ff9b]"></div>
@@ -436,35 +414,38 @@ function App() {
             </h1>
         </div>
         
-        <div className="flex items-center gap-4 text-sm font-bold text-dezz-accent/50 cursor-pointer select-none">
+        <div className="flex items-center gap-2 md:gap-4 text-sm font-bold text-dezz-accent/50 cursor-pointer select-none">
           {/* IDENTITY MODULE */}
-          <div className="hidden md:flex items-center gap-2 pr-4 border-r border-dezz-accent/20">
+          <div className="flex items-center gap-2 pr-2 md:pr-4 border-r border-dezz-accent/20">
             <i className="fa-solid fa-id-badge text-dezz-dim"></i>
-            <span className="font-mono text-[10px] text-gray-400 uppercase tracking-widest hover:text-white transition">
-              ID: {session.user.email.split('@')[0]} {/* Muestra user antes del @ */}
+            <span className="hidden sm:block font-mono text-[10px] text-gray-400 uppercase tracking-widest hover:text-white transition">
+               {session.user.email.split('@')[0]}
             </span>
           </div>
 
           {/* STATS BUTTON */}
-          <button onClick={loadStats} className="hidden md:block mr-4 text-xs font-mono text-gray-500 hover:text-dezz-accent transition uppercase tracking-widest">
-            [ VIEW_STATS ]
+          <button onClick={loadStats} className="mr-2 text-xs font-mono text-gray-500 hover:text-dezz-accent transition uppercase tracking-widest" title="VIEW STATS">
+            <span className="hidden sm:inline">[ VIEW_STATS ]</span>
+            <span className="sm:hidden"><i className="fa-solid fa-chart-line"></i></span>
           </button>
 
           {/* LOGOUT BUTTON */}
           <button 
             onClick={async () => { await supabase.auth.signOut(); setSession(null); }}
             className="hover:text-red-500 text-xs font-mono mr-2 transition-colors uppercase tracking-widest"
+            title="LOGOUT"
           >
-            [ KILL_SESSION ]
+             <i className="fa-solid fa-power-off"></i>
           </button>
 
-          {/* IDIOMA */}
-          <div className="flex gap-2">
+          {/* LANGUAGE */}
+          <div className="flex gap-1 text-[10px] md:text-xs">
             <span onClick={() => setLang('en')} className={`${lang === 'en' ? 'text-dezz-accent' : 'hover:text-white transition'}`}>EN</span>
             <span className="text-dezz-surface">|</span>
             <span onClick={() => setLang('es')} className={`${lang === 'es' ? 'text-dezz-accent' : 'hover:text-white transition'}`}>ES</span>
           </div>
         </div>
+
       </header>
 
       {/* MAIN CONTAINER */}
@@ -484,7 +465,6 @@ function App() {
             <div className="bg-dezz-surface border border-dezz-surface p-6 rounded-sm shadow-xl focus-within:border-dezz-accent/50 transition duration-300 relative group">
               <label className="block text-dezz-accent text-xs font-bold mb-3 tracking-widest flex justify-between items-center">
                 <span>{t.projLabel}</span>
-                {/* Botón para abrir el Modal Brain */}
                 <button 
                   onClick={() => setShowBrain(true)} 
                   className="text-[10px] text-gray-500 hover:text-white flex items-center gap-2 transition"
@@ -501,21 +481,20 @@ function App() {
                   onChange={(e) => setProject(e.target.value)}
                   placeholder={t.placeholderProj}
                   className="w-full bg-transparent text-xl text-white outline-none placeholder-gray-700 font-space font-bold"
-                  list="brain-suggestions" // HTML Nativo Autocomplete
+                  list="brain-suggestions"
                 />
-                {/* Indicador visual si existe en DB */}
                 {tasks.some(t => t.title === project) && (
                    <i className="fa-solid fa-check-circle text-dezz-accent text-lg" title="KNOWN ENTITY"></i>
                 )}
               </div>
 
-              {/* Datalist nativo para autocompletado rápido */}
+              {/* Datalist for autocomplete */}
               <datalist id="brain-suggestions">
                 {tasks.map(t => <option key={t.id} value={t.title} />)}
               </datalist>
             </div>
 
-            {/* Instructions Input (The Knowledge Base) */}
+            {/* Instructions Input */}
             <div className="bg-dezz-surface border border-dezz-surface p-6 rounded-sm shadow-xl">
               <label className="block text-dezz-accent text-xs font-bold mb-3 tracking-widest uppercase flex justify-between">
                 <span>{t.descLabel}</span>
@@ -567,7 +546,7 @@ function App() {
           </div>
         )}
 
-        {/* === VISTA: LOCKED IN (FOCUS MODE) === */}
+        {/* === VISTA: LOCKED IN === */}
         {isLocked && (
           <div className="flex flex-col items-center justify-center h-full animate-in fade-in duration-700">
             
@@ -587,7 +566,7 @@ function App() {
               {formatTime(startTime, now)}
             </div>
 
-            {/* Active Instructions List (Read Only) */}
+            {/* Active Instructions List */}
             <div className="w-full max-w-lg mb-12">
                {instructions.length > 0 ? (
                  <div className="flex flex-col gap-3">
@@ -607,7 +586,7 @@ function App() {
 
             {/* UNLOCK */}
             <button 
-              onDoubleClick={() => setShowClockOutModal(true)} // ABRIMOS MODAL
+              onDoubleClick={() => setShowClockOutModal(true)}
               className="group flex flex-col items-center text-gray-500 hover:text-white transition duration-500 cursor-pointer mt-16"
             >
               <i className="fa-solid fa-power-off text-3xl mb-2 group-hover:text-red-500 transition duration-300"></i>
@@ -625,7 +604,7 @@ function App() {
         SYSTEM ID: DEZZ_LOCK_V1.0 // <span className="text-dezz-accent">DEVELOPED BY <a href="https://dezz.cloud" target="_blank" rel="noopener noreferrer">dezzHub</a></span>
       </footer>
 
-      {/* === COMPONENTE VISUAL: NOTIFICACIONES (TOAST) === */}
+      {/* === COMPONENTE VISUAL: NOTIFICACIONES === */}
       <div className={`fixed top-6 right-6 z-[60] transition-all duration-300 transform ${toast.show ? 'translate-y-0 opacity-100' : '-translate-y-10 opacity-0 pointer-events-none'}`}>
         <div className={`flex items-center gap-3 px-6 py-4 rounded-sm shadow-[0_0_30px_rgba(0,0,0,0.5)] border-l-4 font-mono text-xs uppercase tracking-widest font-bold
           ${toast.type === 'warn' ? 'bg-[#2a0000] border-red-500 text-red-500' : 'bg-dezz-surface border-dezz-accent text-dezz-accent'}`}>
@@ -644,7 +623,7 @@ function App() {
               <button onClick={() => setShowBrain(false)} className="text-gray-500 hover:text-white"><i className="fa-solid fa-times text-xl"></i></button>
             </div>
             
-            {/* Body Lista */}
+            {/* Body List */}
             <div className="p-2 overflow-y-auto custom-scrollbar flex-1">
               {tasks.length > 0 ? (
                 tasks.map(task => (
@@ -683,6 +662,16 @@ function App() {
               className="w-full h-32 bg-dezz-bg text-white p-4 text-sm font-mono border border-dezz-dim focus:border-dezz-accent outline-none mb-6 resize-none"
               autoFocus
             />
+
+            {/* CHECKBOX */}
+            <div className="mb-6 flex items-center gap-3 bg-dezz-bg p-3 border border-dezz-dim hover:border-dezz-accent/50 cursor-pointer" onClick={() => setMarkAsDone(!markAsDone)}>
+               <div className={`w-4 h-4 border ${markAsDone ? 'bg-dezz-accent border-dezz-accent' : 'border-gray-500'} flex items-center justify-center`}>
+                  {markAsDone && <i className="fa-solid fa-check text-black text-[10px]"></i>}
+               </div>
+               <span className="text-xs text-gray-300 font-mono uppercase tracking-wide">
+                 MARK PROJECT AS <span className={markAsDone ? "text-dezz-accent" : ""}>COMPLETED</span>
+               </span>
+            </div>
 
             <div className="flex gap-3">
               <button onClick={() => setShowClockOutModal(false)} className="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition border border-transparent hover:border-gray-600">

@@ -25,8 +25,18 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.ico",
+      "icon": "public/favicon.ico", 
       "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "public/icon.png", 
+      "category": "Utility",
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/icon.png"
     }
   },
   "dependencies": {
