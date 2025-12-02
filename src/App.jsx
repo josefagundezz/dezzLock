@@ -14,7 +14,15 @@ const dict = {
     timeElapsed: "SESSION TIME",
     finishBtn: "CLOCK OUT / COMPLETE",
     placeholderProj: "Select or type project...",
-    emptyError: "SYSTEM ERROR: DEFINE PARAMETERS FIRST"
+    emptyError: "SYSTEM ERROR: DEFINE PARAMETERS FIRST",
+    logLabel: "SESSION LOG / SUMMARY",
+    logPlaceholder: "What did you accomplish? (Commits, fixes...)",
+    statsTitle: "PERFORMANCE ANALYTICS",
+    confirmEnd: "TERMINATE & SAVE SESSION",
+    totalTime: "TOTAL FOCUS TIME",
+    cancel: "CANCEL",
+    save: "SAVE",
+    
   },
   es: {
     subtitle: "SISTEMA DE ENFOQUE POLÍMATA",
@@ -27,7 +35,15 @@ const dict = {
     timeElapsed: "TIEMPO DE SESIÓN",
     finishBtn: "FINALIZAR / CLOCK OUT",
     placeholderProj: "Selecciona o escribe proyecto...",
-    emptyError: "ERROR DE SISTEMA: DEFINE PARÁMETROS"
+    emptyError: "ERROR DE SISTEMA: DEFINE PARÁMETROS",
+    logLabel: "RESUMEN DE SESIÓN",
+    logPlaceholder: "¿Qué lograste? (Commits, cambios...)",
+    statsTitle: "ANALÍTICA DE RENDIMIENTO",
+    confirmEnd: "TERMINAR Y GUARDAR",
+    totalTime: "TIEMPO TOTAL DE ENFOQUE",
+    cancel: "CANCELAR",
+    save: "GUARDAR",
+  
   }
 };
 
@@ -65,17 +81,24 @@ function App() {
 
   // CEREBRO AUTOMÁTICO: Si el proyecto es nuevo, lo guardamos en BD
   const saveToBrain = async (title) => {
-    // Verificamos si ya existe para no duplicar
-    const exists = tasks.some(t => t.title.toLowerCase() === title.toLowerCase());
-    if (!exists && title !== 'NEW_FLOW') {
+    // 1. Buscamos si ya existe en memoria local
+    const existing = tasks.find(t => t.title.toLowerCase() === title.toLowerCase());
+    if (existing) return existing.id;
+
+    // 2. Si es nuevo, lo creamos
+    if (title !== 'NEW_FLOW') {
       const { data, error } = await supabase.from('tasks').insert({
         user_id: session.user.id,
         title: title,
-        status: 'pending' // Siempre 'pending' para que salga en el select luego
+        status: 'pending'
       }).select();
       
-      if (!error && data) setTasks([data[0], ...tasks]); // Actualizamos localmente
+      if (!error && data) {
+        setTasks([data[0], ...tasks]);
+        return data[0].id; // Retornamos el nuevo ID
+      }
     }
+    return null;
   };
 
   // === STATE MANAGEMENT ===
@@ -86,6 +109,14 @@ function App() {
   // UI STATES
   const [showBrain, setShowBrain] = useState(false); // Modal del Cerebro
   const [toast, setToast] = useState({ show: false, msg: '', type: 'info' }); // Toast Custom
+  // LOGIC STATES EXTENDED
+  const [currentTaskId, setCurrentTaskId] = useState(null); // Para vincular FK en DB
+  const [sessionLog, setSessionLog] = useState(''); // Lo que escribas al salir
+  
+  // MODAL STATES
+  const [showClockOutModal, setShowClockOutModal] = useState(false); // Modal de Salida
+  const [showStats, setShowStats] = useState(false); // Modal de Estadísticas
+  const [history, setHistory] = useState([]); // Historial de sesiones
 
   // HELPER: NOTIFICACIONES (Reemplaza los alerts)
   const showToast = (msg, type = 'info') => {
@@ -103,10 +134,11 @@ function App() {
   };
 
   // HELPER: Seleccionar tarea del cerebro
-  const selectTaskFromBrain = (taskTitle) => {
-    setProject(taskTitle);
+  const selectTaskFromBrain = (task) => {
+    setProject(task.title);
+    setCurrentTaskId(task.id); // Guardamos el ID real
+    setInstructions(task.description ? [task.description] : []); // Opcional: Cargar nota guardada
     setShowBrain(false);
-    // showToast(`TARGET ACQUIRED: ${taskTitle}`, 'success'); // Opcional
   };
 
   // Efecto para escuchar la Auth al cargar
@@ -194,22 +226,28 @@ function App() {
     setInstructions(newIns);
   };
 
-  const handleLockIn = () => {
+  const handleLockIn = async () => {
     if (!project.trim() || project === 'NEW_FLOW') {
-      showToast(t.emptyError, 'warn'); // Usa Toast
+      showToast(t.emptyError, 'warn');
       return;
     }
-    
-    // Guardamos en el cerebro si es nuevo
-    saveToBrain(project); 
+
+    // Buscamos o Creamos el ID de la tarea
+    let finalTaskId = currentTaskId;
+    if (!finalTaskId) {
+      finalTaskId = await saveToBrain(project);
+      setCurrentTaskId(finalTaskId);
+    }
 
     const start = Date.now();
     setStartTime(start);
     setNow(start);
     setIsLocked(true);
     
+    // Guardamos state recuperable
     localStorage.setItem('dezzSession', JSON.stringify({
       project,
+      currentTaskId: finalTaskId, // Guardamos ID también
       instructions,
       startTime: start
     }));
@@ -224,8 +262,6 @@ function App() {
       // 1. Enviar a Supabase
       const { error } = await supabase.from('sessions').insert({
         user_id: session.user.id,
-        // Si el proyecto coincide con una tarea, podrías mandar task_id, 
-        // pero por ahora mandamos el nombre en el log para simplificar.
         log_notes: `Project: ${project} // Duration: ${duration}s`, 
         start_time: new Date(startTime).toISOString(),
         end_time: new Date().toISOString(),
@@ -242,6 +278,20 @@ function App() {
     }
   };
 
+  const loadStats = async () => {
+    setShowStats(true);
+    const { data } = await supabase
+      .from('sessions')
+      .select(`
+        *,
+        tasks ( title )
+      `)
+      .order('end_time', { ascending: false })
+      .limit(20);
+    
+    if (data) setHistory(data);
+  };
+
   // Formateador de Tiempo HH:MM:SS
   const formatTime = (start, current) => {
     if (!start || !current) return "00:00:00";
@@ -250,6 +300,36 @@ function App() {
     const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
     const s = (diff % 60).toString().padStart(2, '0');
     return `${h}:${m}:${s}`;
+  };
+
+  const confirmEndSession = async () => {
+    const duration = Math.floor((Date.now() - startTime) / 1000);
+    
+    // 1. Enviar a Supabase
+    const { error } = await supabase.from('sessions').insert({
+      user_id: session.user.id,
+      task_id: currentTaskId, // AHORA SÍ ESTÁ VINCULADO
+      log_notes: sessionLog,  // EL RESUMEN DEL USUARIO
+      start_time: new Date(startTime).toISOString(),
+      end_time: new Date().toISOString(),
+      duration_seconds: duration
+    });
+
+    if (error) {
+      console.error(error);
+      showToast("SAVE FAILED - CHECK CONSOLE", "warn");
+    } else {
+      showToast("SESSION LOGGED SECURELY", "success");
+    }
+
+    // Limpieza
+    setIsLocked(false);
+    setShowClockOutModal(false);
+    setInstructions([]);
+    setProject('');
+    setCurrentTaskId(null);
+    setSessionLog('');
+    localStorage.removeItem('dezzSession');
   };
 
   // === VISTA DE ACCESO DINÁMICA (4 ESTADOS) ===
@@ -338,6 +418,11 @@ function App() {
               ID: {session.user.email.split('@')[0]} {/* Muestra user antes del @ */}
             </span>
           </div>
+
+          {/* STATS BUTTON */}
+          <button onClick={loadStats} className="hidden md:block mr-4 text-xs font-mono text-gray-500 hover:text-dezz-accent transition uppercase tracking-widest">
+            [ VIEW_STATS ]
+          </button>
 
           {/* LOGOUT BUTTON */}
           <button 
@@ -496,11 +581,11 @@ function App() {
 
             {/* UNLOCK */}
             <button 
-              onDoubleClick={handleClockOut}
-              className="group flex flex-col items-center text-gray-500 hover:text-white transition duration-500"
+              onDoubleClick={() => setShowClockOutModal(true)} // ABRIMOS MODAL
+              className="group flex flex-col items-center text-gray-500 hover:text-white transition duration-500 cursor-pointer mt-16"
             >
-              <i className="fa-solid fa-lock-open text-3xl mb-2 group-hover:text-red-500 transition duration-300"></i>
-              <span className="text-xs tracking-widest uppercase group-hover:tracking-[0.3em] transition-all">
+              <i className="fa-solid fa-power-off text-3xl mb-2 group-hover:text-red-500 transition duration-300"></i>
+              <span className="text-[10px] tracking-widest uppercase group-hover:tracking-[0.2em] transition-all">
                 Double Click to {t.finishBtn}
               </span>
             </button>
@@ -555,6 +640,77 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* === MODAL: CLOCK OUT CONFIRMATION === */}
+      {showClockOutModal && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-dezz-surface border border-dezz-accent w-full max-w-md p-6 shadow-[0_0_50px_rgba(0,255,155,0.1)] rounded-sm">
+            <h3 className="font-space font-bold text-2xl text-white mb-6 uppercase tracking-tight">
+              SESSION <span className="text-dezz-accent">REPORT</span>
+            </h3>
+            
+            <label className="block text-[10px] text-gray-500 font-mono uppercase tracking-widest mb-2">{t.logLabel}</label>
+            <textarea 
+              value={sessionLog}
+              onChange={(e) => setSessionLog(e.target.value)}
+              placeholder={t.logPlaceholder}
+              className="w-full h-32 bg-dezz-bg text-white p-4 text-sm font-mono border border-dezz-dim focus:border-dezz-accent outline-none mb-6 resize-none"
+              autoFocus
+            />
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowClockOutModal(false)} className="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition border border-transparent hover:border-gray-600">
+                {t.cancel}
+              </button>
+              <button onClick={confirmEndSession} className="flex-1 py-4 bg-dezz-accent text-black text-xs font-bold uppercase tracking-widest hover:bg-white transition shadow-lg shadow-dezz-accent/20">
+                {t.confirmEnd}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === MODAL: STATS DASHBOARD === */}
+      {showStats && (
+        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-3xl h-[80vh] bg-dezz-bg border border-dezz-dim rounded-sm flex flex-col shadow-2xl">
+            <div className="p-6 border-b border-dezz-dim flex justify-between items-center bg-dezz-surface/50">
+              <div>
+                <h3 className="font-space font-bold text-xl text-white tracking-tight uppercase">{t.statsTitle}</h3>
+                <p className="text-[10px] text-dezz-accent font-mono uppercase tracking-widest">LAST 20 SESSIONS</p>
+              </div>
+              <button onClick={() => setShowStats(false)} className="text-gray-500 hover:text-white"><i className="fa-solid fa-times text-xl"></i></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {history.map(sess => (
+                   <div key={sess.id} className="bg-dezz-surface border border-dezz-dim p-4 hover:border-dezz-accent/50 transition group">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-dezz-accent text-xs font-bold font-mono">
+                          {Math.floor(sess.duration_seconds / 60)} MINS
+                        </span>
+                        <span className="text-[10px] text-gray-600 font-mono">
+                          {new Date(sess.end_time).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-white font-space leading-tight mb-2 truncate">
+                        {sess.tasks?.title || "Unknown Task"}
+                      </h4>
+                      <p className="text-xs text-gray-400 font-mono line-clamp-2 h-8">
+                        {sess.log_notes || "No logs..."}
+                      </p>
+                   </div>
+                 ))}
+              </div>
+              {history.length === 0 && (
+                <div className="h-full flex items-center justify-center text-gray-600 font-mono text-sm uppercase">No Data Recorded Yet</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 }
