@@ -49,34 +49,60 @@ const dict = {
 
 function App() {
   // AUTH SYSTEM
-  const handleAuth = async (email, password) => {
-    let result = {}; // Inicializamos vacío para evitar crash
+  const handleAuth = async (e) => {
+    // 1. PREVENCIÓN DE RECARGA (CRÍTICO PARA ELECTRON)
+    if (e) e.preventDefault();
     
-    if (authView === 'login') {
-      result = await supabase.auth.signInWithPassword({ email, password });
-    } else if (authView === 'register') {
-      result = await supabase.auth.signUp({ email, password });
-      if (!result.error) showToast("CONFIRMATION EMAIL SENT", 'success');
-    } else if (authView === 'recovery') {
-      result = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://lock.dezz.cloud'
-      });
-      if (!result.error) {
-         showToast("RECOVERY LINK SENT", 'success');
-         setAuthView('login');
-         return; 
-      }
-    } else if (authView === 'update_password') {
-      // --> AQUÍ ESTÁ LO QUE FALTABA
-      result = await supabase.auth.updateUser({ password: password });
-      if (!result.error) {
-        showToast("PASSWORD UPDATED SUCCESSFULLY", 'success');
-        setAuthView('login');
-        return;
-      }
+    setLoading(true);
+
+    // Capturamos valores asegurando que existan
+    const emailRef = document.getElementById('email');
+    const passRef = document.getElementById('pass');
+    
+    // Validación defensiva
+    if (!emailRef || (authView !== 'recovery' && !passRef)) {
+       showToast("SYSTEM ERROR: INPUTS NOT FOUND", 'warn');
+       setLoading(false);
+       return;
     }
 
-    if (result.error) showToast(result.error.message.toUpperCase(), 'warn');
+    const email = emailRef.value;
+    const password = passRef ? passRef.value : null;
+
+    let result = {};
+
+    try {
+      // Switch de Lógica Auth
+      if (authView === 'login') {
+        result = await supabase.auth.signInWithPassword({ email, password });
+      } else if (authView === 'register') {
+        result = await supabase.auth.signUp({ email, password });
+        if (!result.error) showToast("CHECK EMAIL FOR CONFIRMATION", 'success');
+      } else if (authView === 'recovery') {
+        result = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: 'https://lock.dezz.cloud'
+        });
+        if (!result.error) {
+           showToast("RECOVERY EMAIL SENT", 'success');
+           setAuthView('login');
+        }
+      } else if (authView === 'update_password') {
+        result = await supabase.auth.updateUser({ password });
+        if (!result.error) {
+           showToast("PASSWORD UPDATED", 'success');
+           setAuthView('login');
+        }
+      }
+
+      // Manejo de Error de Supabase
+      if (result.error) throw result.error;
+
+    } catch (error) {
+      console.error(error); // Para debug interno
+      showToast(error.message.toUpperCase(), 'warn'); // Feedback al usuario
+    } finally {
+      setLoading(false); // Liberar interfaz
+    }
   };
 
   // CEREBRO AUTOMÁTICO: Si el proyecto es nuevo, lo guardamos en BD
@@ -104,7 +130,6 @@ function App() {
   // === STATE MANAGEMENT ===
   const [session, setSession] = useState(null)
   const [tasks, setTasks] = useState([]) // Tu lista de cerebro "Knowledge"
-  // Controla qué formulario vemos: 'login', 'register', 'recovery'
   const [authView, setAuthView] = useState('login');
   // UI STATES
   const [showBrain, setShowBrain] = useState(false); // Modal del Cerebro
@@ -112,6 +137,7 @@ function App() {
   // LOGIC STATES EXTENDED
   const [currentTaskId, setCurrentTaskId] = useState(null); // Para vincular FK en DB
   const [sessionLog, setSessionLog] = useState(''); // Lo que escribas al salir
+  const [loading, setLoading] = useState(false); 
   
   // MODAL STATES
   const [showClockOutModal, setShowClockOutModal] = useState(false); // Modal de Salida
@@ -332,15 +358,17 @@ function App() {
     localStorage.removeItem('dezzSession');
   };
 
-  // === VISTA DE ACCESO DINÁMICA (4 ESTADOS) ===
+  // === VISTA DE ACCESO DINÁMICA ===
   if (!session) {
     return (
-      <div className="min-h-screen bg-dezz-bg flex items-center justify-center p-4 relative overflow-hidden">
-        {/* Fondo sutil */}
+      <div className="min-h-screen bg-dezz-bg flex items-center justify-center p-4 relative overflow-hidden select-none">
         <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" style={{backgroundImage: 'linear-gradient(#141414 1px, transparent 1px), linear-gradient(90deg, #141414 1px, transparent 1px)', backgroundSize: '40px 40px'}}></div>
 
-        <div className="z-10 w-full max-w-sm flex flex-col items-center bg-dezz-surface border border-dezz-accent/20 p-8 shadow-2xl animate-fade-in-up">
-          
+        {/* FORM OBLIGATORIO: Permite usar la tecla ENTER */}
+        <form 
+           onSubmit={handleAuth}
+           className="z-10 w-full max-w-sm flex flex-col items-center bg-dezz-surface border border-dezz-accent/20 p-8 shadow-2xl animate-fade-in-up"
+        >
           <h2 className="font-space text-2xl mb-1 text-white tracking-tight">
             DEZZ<span className="text-dezz-accent">LOCK</span> ACCESS
           </h2>
@@ -351,42 +379,40 @@ function App() {
             {authView === 'update_password' && 'SECURE NEW PASSWORD'}
           </p>
           
-          {/* El Email solo se muestra si NO estamos actualizando la pass */}
           {authView !== 'update_password' && (
-             <input id="email" type="email" placeholder="EMAIL ADDRESS" className="w-full bg-dezz-bg p-3 border border-dezz-dim text-white outline-none focus:border-dezz-accent font-mono text-xs mb-3"/>
+             <input id="email" type="email" placeholder="EMAIL ADDRESS" required className="w-full bg-dezz-bg p-3 border border-dezz-dim text-white outline-none focus:border-dezz-accent font-mono text-xs mb-3"/>
           )}
           
-          {/* La Contraseña solo se muestra si NO estamos pidiendo el link de recuperación */}
           {authView !== 'recovery' && (
-             <input id="pass" type="password" placeholder={authView === 'update_password' ? "ENTER NEW PASSWORD" : "PASSPHRASE"} className="w-full bg-dezz-bg p-3 border border-dezz-dim text-white outline-none focus:border-dezz-accent font-mono text-xs mb-3"/>
+             <input id="pass" type="password" placeholder={authView === 'update_password' ? "NEW PASSWORD" : "PASSPHRASE"} required className="w-full bg-dezz-bg p-3 border border-dezz-dim text-white outline-none focus:border-dezz-accent font-mono text-xs mb-3"/>
           )}
           
-          {/* Action Button */}
           <button 
-            onClick={() => handleAuth(
-              authView !== 'update_password' ? document.getElementById('email').value : null, 
-              authView !== 'recovery' ? document.getElementById('pass').value : null
-            )}
-            className="w-full bg-dezz-accent text-black font-bold py-3 hover:bg-white transition text-xs tracking-[0.2em] mb-4 uppercase"
+            type="submit" 
+            disabled={loading}
+            className={`w-full text-black font-bold py-3 transition text-xs tracking-[0.2em] mb-4 uppercase flex justify-center items-center gap-2 ${loading ? 'bg-gray-600 cursor-not-allowed text-white' : 'bg-dezz-accent hover:bg-white'}`}
           >
-            {authView === 'login' && 'LOGIN'}
-            {authView === 'register' && 'CREATE ACCOUNT'}
-            {authView === 'recovery' && 'SEND RESET LINK'}
-            {authView === 'update_password' && 'SAVE NEW PASSWORD'}
+            {loading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : (
+                <>
+                    {authView === 'login' && 'LOGIN'}
+                    {authView === 'register' && 'CREATE ACCOUNT'}
+                    {authView === 'recovery' && 'SEND LINK'}
+                    {authView === 'update_password' && 'SAVE'}
+                </>
+            )}
           </button>
 
-          {/* Toggle Menu */}
-          <div className="flex justify-between w-full text-[10px] font-mono text-gray-500 uppercase tracking-widest cursor-pointer select-none">
+          <div className="flex justify-between w-full text-[10px] font-mono text-gray-500 uppercase tracking-widest cursor-pointer">
              {authView === 'login' ? (
                 <>
-                  <span onClick={() => setAuthView('register')} className="hover:text-dezz-accent hover:underline">CREATE ID</span>
-                  <span onClick={() => setAuthView('recovery')} className="hover:text-white hover:underline">LOST PASS?</span>
+                  <span onClick={() => setAuthView('register')} className="hover:text-dezz-accent">CREATE ID</span>
+                  <span onClick={() => setAuthView('recovery')} className="hover:text-white">LOST PASS?</span>
                 </>
              ) : (
-                <span onClick={() => setAuthView('login')} className="hover:text-dezz-accent w-full text-center hover:underline">BACK TO LOGIN</span>
+                <span onClick={() => setAuthView('login')} className="hover:text-dezz-accent w-full text-center">BACK TO LOGIN</span>
              )}
           </div>
-        </div>
+        </form>
       </div>
     );
   }
@@ -710,7 +736,7 @@ function App() {
           </div>
         </div>
       )}
-      
+
     </div>
   );
 }
