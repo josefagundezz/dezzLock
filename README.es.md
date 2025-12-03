@@ -134,13 +134,6 @@ npm run dev
 # 5. Construir App de Escritorio (Salida en carpeta /release)
 npm run electron:build
 ```
-# (.env.example) 📄
-Crea un archivo en la raíz de tu proyecto llamado .env.example.
-
-# RENOMBRA LAS VARIABLES .env Y AGREGA TUS LLAVES
-1. VITE_SUPABASE_URL=YOUR_SUPABASE_URL_HERE
-2. VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE
-
 <div align="center">
 <br/>
 <p>DISEÑADO E INGENIADO POR</p>

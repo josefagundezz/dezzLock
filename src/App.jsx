@@ -73,7 +73,7 @@ function App() {
         result = await supabase.auth.signInWithPassword({ email, password });
       } else if (authView === 'register') {
         result = await supabase.auth.signUp({ email, password });
-        if (!result.error) showToast("CHECK EMAIL FOR CONFIRMATION", 'success');
+        if (!result.error) showToast("WELCOME TO DEZZLOCK", 'success');
       } else if (authView === 'recovery') {
         result = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: 'https://lock.dezz.cloud'

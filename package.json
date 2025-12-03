@@ -1,7 +1,7 @@
 {
   "name": "dezzlock",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "electron.js",
   "description": "Polymath Focus System by dezzHub",
   "author": "dezzHub",
@@ -25,12 +25,12 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.ico", 
+      "icon": "public/favicon.ico",
       "artifactName": "${productName} Setup ${version}.${ext}"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "public/icon.png", 
+      "icon": "public/icon.png",
       "category": "Utility",
       "artifactName": "${productName}-${version}.${ext}"
     },
@@ -41,8 +41,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
