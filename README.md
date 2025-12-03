@@ -1,3 +1,9 @@
+<div align="right">
+  <a href="./README.md">
+    <img src="https://img.shields.io/badge/Lang-Spanish-blue?style=for-the-badge&logo=google-translate&logoColor=white" alt="Switch to Spanish">
+  </a>
+</div>
+
 <div align="center">
 
   # dezzLock 🔒
