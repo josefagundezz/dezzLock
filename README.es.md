@@ -104,11 +104,11 @@ Obtén la experiencia libre de distracciones.
 
 **Windows (.exe)**
 1. Ve a [Releases](https://github.com/josefagundezz/dezzLock/releases).
-2. Descarga `dezzLock Setup 1.0.0.exe`.
+2. Descarga `dezzLock Setup 1.0.1.exe`.
 3. Instala y haz Lock In.
 
 **Linux (.AppImage)**
-1. Descarga `dezzLock-1.0.0.AppImage`.
+1. Descarga `dezzLock-1.0.1.AppImage`.
 2. Clic derecho -> Propiedades -> Permitir ejecutar archivo como programa.
 3. Ejecutar.
 
