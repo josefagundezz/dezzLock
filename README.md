@@ -136,6 +136,14 @@ npm run dev
 npm run electron:build
 ```
 
+# (.env.example) 📄
+Create a file in your root folder called .env.example.
+
+# RENAME THIS FILE TO .env AND ADD YOUR KEYS
+1. VITE_SUPABASE_URL=YOUR_SUPABASE_URL_HERE
+2. VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE
+
+
 <div align="center">
 <br/>
 <p>DESIGNED & ENGINEERED BY</p>
