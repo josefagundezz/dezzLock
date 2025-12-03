@@ -128,6 +128,7 @@ function App() {
   const [currentTaskId, setCurrentTaskId] = useState(null); 
   const [sessionLog, setSessionLog] = useState(''); 
   const [loading, setLoading] = useState(false); 
+  const [showPassword, setShowPassword] = useState(false);
   const [showClockOutModal, setShowClockOutModal] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [history, setHistory] = useState([]);
@@ -362,7 +363,24 @@ function App() {
           )}
           
           {authView !== 'recovery' && (
-             <input id="pass" type="password" placeholder={authView === 'update_password' ? "NEW PASSWORD" : "PASSPHRASE"} required className="w-full bg-dezz-bg p-3 border border-dezz-dim text-white outline-none focus:border-dezz-accent font-mono text-xs mb-3"/>
+             <div className="relative w-full mb-3 group">
+               <input 
+                 id="pass" 
+                 type={showPassword ? "text" : "password"} 
+                 placeholder={authView === 'update_password' ? "NEW PASSWORD" : "PASSPHRASE"} 
+                 required 
+                 className="w-full bg-dezz-bg p-3 border border-dezz-dim text-white outline-none focus:border-dezz-accent font-mono text-xs pr-10 transition-colors"
+               />
+               
+               <button
+                 type="button" 
+                 onClick={() => setShowPassword(!showPassword)}
+                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 hover:text-dezz-accent transition focus:outline-none"
+                 tabIndex="-1" 
+               >
+                 <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+               </button>
+             </div>
           )}
           
           <button 
