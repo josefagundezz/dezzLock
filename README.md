@@ -3,9 +3,10 @@
   # dezzLock 🔒
   ### THE POLYMATH FOCUS SYSTEM
 
-  ![Version](https://img.shields.io/badge/version-1.0.0-00ff9b?style=for-the-badge&logo=appveyor&logoColor=black)
-  ![Status](https://img.shields.io/badge/status-PRODUCTION-00ff9b?style=for-the-badge)
-  ![License](https://img.shields.io/badge/license-MIT-white?style=for-the-badge)
+  <!-- BADGES MEJORADOS CON CONTRASTE -->
+  ![Version](https://img.shields.io/badge/version-1.0.0-00ff9b?style=for-the-badge&logo=appveyor&logoColor=black&labelColor=141414)
+  ![Status](https://img.shields.io/badge/status-PRODUCTION-00ff9b?style=for-the-badge&labelColor=141414&logoColor=black)
+  ![License](https://img.shields.io/badge/license-MIT-white?style=for-the-badge&labelColor=141414)
 
   <p align="center">
     A native "State Manager" for the creative brain. Stop deciding, start executing.
