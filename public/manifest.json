@@ -1,0 +1,19 @@
+{
+  "name": "dezzLock — Polymath Focus System",
+  "short_name": "dezzLock",
+  "description": "A native State Manager for the creative brain. Stop deciding, start executing.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00ff9b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"]
+}

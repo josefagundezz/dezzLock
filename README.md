@@ -1,26 +1,25 @@
 <div align="right">
   <a href="./README.es.md">
-    <img src="https://img.shields.io/badge/Lang-Spanish-blue?style=for-the-badge&logo=google-translate&logoColor=white" alt="Switch to Spanish">
+    <img src="https://img.shields.io/badge/Lang-Español-red?style=for-the-badge&logo=google-translate&logoColor=white" alt="Switch to Spanish">
   </a>
 </div>
 
 <div align="center">
 
   # dezzLock 🔒
-  ### THE POLYMATH FOCUS SYSTEM
+  ### POLYMATH FOCUS SYSTEM
 
-  <!-- BADGES MEJORADOS CON CONTRASTE -->
-  ![Version](https://img.shields.io/badge/version-1.0.0-00ff9b?style=for-the-badge&logo=appveyor&logoColor=black&labelColor=141414)
-  ![Status](https://img.shields.io/badge/status-PRODUCTION-00ff9b?style=for-the-badge&labelColor=141414&logoColor=black)
+  ![Version](https://img.shields.io/badge/version-1.1.0-00ff9b?style=for-the-badge&logo=appveyor&logoColor=black&labelColor=141414)
+  ![Status](https://img.shields.io/badge/status-STABLE-00ff9b?style=for-the-badge&labelColor=141414&logoColor=black)
   ![License](https://img.shields.io/badge/license-MIT-white?style=for-the-badge&labelColor=141414)
 
   <p align="center">
-    A native "State Manager" for the creative brain. Stop deciding, start executing.
+    A native "Mental State Manager" for the creative brain. Stop deciding, start executing.
     <br />
     <br />
     <a href="https://lock.dezz.cloud"><strong>Launch Web App »</strong></a>
     ·
-    <a href="https://github.com/josefagundezz/dezzLock/releases"><strong>Download Desktop App »</strong></a>
+    <a href="https://github.com/josef/dezzLock/releases"><strong>Download Desktop App »</strong></a>
   </p>
 </div>
 
@@ -28,111 +27,96 @@
 
 ## ⚡ System Overview
 
-**dezzLock** isn't just a timer; it's a **psychological anchor**. Designed for polymaths, developers, and creatives who juggle multiple projects simultaneously.
+**dezzLock** is not just a timer; it's a **psychological anchor**. Designed for polymaths, developers, and creatives juggling multiple high-stakes projects simultaneously. 
 
-Traditional "To-Do" lists create anxiety. **dezzLock** forces a state of flow by simulating a "Clock-In" mechanism, locking the interface to a single task, and maintaining a persistent knowledge base of your active missions.
+Traditional To-Do lists breed anxiety. **dezzLock** forces a Flow state by simulating a "Clock-In" mechanism, locking your interface into a single mission and maintaining a persistent knowledge brain of your active tasks.
 
 ### "Externalize your working memory."
 
 ---
 
-## 📸 Interface Data
+## 📸 Interface Preview
 
 <div align="center">
-  <img src="./screenshots/lock.png" alt="Lock Mode" width="800" style="border-radius: 10px; margin-bottom: 20px;">
+  <img src="./public/preview_v1.1.png" alt="dezzLock v1.1 HUD" width="800" style="border-radius: 10px; margin-bottom: 20px;">
   <br>
-  <em>The Lock-In HUD: Distraction-free focus environment.</em>
-</div>
-
-<br>
-
-<div align="center">
-  <div style="display: flex; justify-content: center; gap: 20px;">
-    <img src="./screenshots/dashboard.png" alt="Stats Dashboard" width="45%" style="border-radius: 8px;">
-    <img src="./screenshots/sessions.png" alt="Sessions List" width="45%" style="border-radius: 8px;">
-  </div>
-  <em>Performance Analytics & Knowledge Archive.</em>
+  <em>The Lock-In HUD: A distraction-free environment for deep work.</em>
 </div>
 
 ---
 
-## 🧩 Core Modules
+## 🧩 Core Modules (v1.1.0)
 
-### 🧠 The Knowledge Brain (Database)
-Instead of typing tasks repeatedly, save them to your personal **Cloud Brain**.
-- **Recall Protocol:** Instantly load projects from the dropdown or the Brain Archive.
-- **Persistence:** New projects are auto-saved to Supabase.
-- **Status Tracking:** Mark projects as `PENDING` or `DONE`.
+### 📅 Focus Protocols (Automation)
+Schedule your work shifts in advance. 
+- **Imminent Alerts:** The system triggers a "Protocol Imminent" sequence 5 minutes before your shift, allowing you to queue an **Auto-Start**.
+- **Recurring Power:** Set protocols for specific days and hours to automate your routine.
 
-### 🔒 The Lock-In Mechanism
-- **Distraction-Free HUD:** Once locked, the UI simplifies to show only Time, Project, and Instructions.
-- **Double-Confirm:** To clock out, you must interact deliberately (Double Click), preventing accidental breaks.
-- **Visual Feedback:** Uses distinct Dark Mode aesthetics with Neon accents (`#00ff9b`) to trigger the "Work Mode" mindset.
+### 📊 Deep Analytics & Stand-ups
+- **Daily Stand-up:** Generate copy-paste ready summaries of your day's work from the header.
+- **Intensity Heatmaps:** Visualize your productivity patterns across projects and categories.
+- **CSV Export:** Take your raw data for further analysis.
 
-### 📊 Performance Analytics
-- **Session Archive:** Tracks every second of focus.
-- **Smart Logs:** Before clocking out, the system requests a summary of what was accomplished (e.g., "Commits pushed", "Bug fixed").
-- **Dashboard:** Visualize your last 20 sessions and total flow time directly in the app.
+### 💓 Pulse Checks (Anti-Idle)
+- **Presence Monitor:** Configure frequency (15-60m) to confirm you are still focused.
+- **Auto-Pause:** The system automatically pauses sessions if neglected for 5 minutes, ensuring billing accuracy and focus integrity.
 
-### 🛡️ Authentication & Security
-- **Secure Access:** Powered by **Supabase Auth**.
-- **Magic Links & Recovery:** Built-in password reset and email handling.
-- **Data Privacy:** Your tasks are secured via Row Level Security (RLS).
+### 🧠 The Knowledge Brain
+- **Categorized Archive:** Store projects under CODE, DESIGN, MUSIC, etc.
+- **Context Preservation:** Each task node saves description/logic that is injected directly into your focus view.
+
+### 👤 Identity & Sync
+- **Custom Avatars:** Cloud-synced profile photos via Supabase Storage.
+- **Global Units:** Toggle between **Minutes** and **Hours** display units instantly.
+- **Streaks:** 7-tier motivational progression (Sprout to dezzGod) based on consistency.
 
 ---
 
-## 🛠️ Tech Stack (The Engine)
+## 🛠️ Tech Stack
 
-Built with resilience and performance in mind.
+Built for resilience and ultra-fast performance.
 
 | Component | Technology | Description |
 | :--- | :--- | :--- |
-| **Frontend** | React + Vite | Blazing fast UI rendering. |
-| **Styling** | TailwindCSS | Cyberpunk aesthetic system. |
-| **Backend** | Supabase | Postgres Database & Auth handling. |
-| **Desktop Wrapper** | Electron | Native execution on Linux & Windows. |
-| **Builder** | Electron-Builder | Compiled to `.AppImage` and `.exe`. |
+| **Frontend** | React + Vite | High-performance UI rendering. |
+| **Styles** | Vanilla CSS + Tailwind | Custom HUD/Cyberpunk design system. |
+| **Backend** | Supabase | Postgres DB, Auth, and Storage. |
+| **Desktop Wrapper**| Electron | Native execution on Windows. |
+| **PWA** | Service Workers | Fully installable mobile experience. |
 
 ---
 
-## 🚀 Installation & Usage
+## 🚀 Installation & Setup
 
 ### Web Version
-Access instantly via any browser: [**lock.dezz.cloud**](https://lock.dezz.cloud)
+Instant access via browser: [**lock.dezz.cloud**](https://lock.dezz.cloud)
 
-### Desktop Native (Recommended)
-Get the distraction-free experience.
-
-**Windows (.exe)**
-1. Go to [Releases](https://github.com/josefagundezz/dezzLock/releases).
-2. Download `dezzLock Setup 1.0.1.exe`.
-3. Install and Lock In.
-
-**Linux (.AppImage)**
-1. Download `dezzLock-1.0.1.AppImage`.
-2. Right click -> Properties -> Allow executing file as program.
-3. Run.
-
----
-
-## 👨‍💻 Developer Build
-
+### Developer Build
 To clone and run this system locally:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/josefagundezz/dezzLock.git
+# 1. Clone the matrix
+git clone https://github.com/josef/dezzLock.git
 
-# 2. Enter the matrix
+# 2. Step inside
 cd dezzLock
 
 # 3. Install dependencies
 npm install
 
-# 4. Run development mode (Web)
+# 4. Setup Environment
+# Create .env based on .env.example with your Supabase keys
+
+# 5. Database Setup
+# Apply migrations:
+# - supabase_migration_v1.1.sql
+# - supabase_migration_v1.1_phase4.sql
+# - supabase_fix_deletion.sql
+
+# 6. Run Dev Mode (Web)
 npm run dev
 
-# 5. Build Desktop App (Outputs to /release folder)
+# 7. Build Desktop App (Outputs to /release)
 npm run electron:build
 ```
 
