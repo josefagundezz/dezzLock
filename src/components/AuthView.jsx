@@ -53,23 +53,32 @@ export default function AuthView({ authView, setAuthView, loading, showPassword,
               Designed for architects of code, music, and complex logic.
             </p>
 
-            {/* VIDEO SECTION: Styled YouTube Embed */}
-            <div className="relative w-full aspect-video bg-black border border-dezz-dim rounded-sm overflow-hidden mb-12 shadow-[0_0_30px_rgba(0,255,155,0.05)] group hover:border-dezz-accent/50 transition-all duration-700">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-dezz-accent/20 to-transparent"></div>
+            {/* VIDEO SECTION: Local MP4 Loop for Desktop/Web stability */}
+            <div className="relative w-full aspect-video bg-black border border-dezz-dim rounded-sm overflow-hidden mb-12 shadow-[0_0_30px_rgba(0,255,155,0.05)] group hover:border-dezz-accent/30 transition-all duration-700">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-dezz-accent/20 to-transparent z-20"></div>
               
-              <iframe 
-                src="https://www.youtube.com/embed/9rUJdIjWowQ?si=UA_WeTasAVpyn4Bc&modestbranding=1&rel=0&iv_load_policy=3" 
-                title="dezzLock System Overview" 
-                className="w-full h-full border-none opacity-80 group-hover:opacity-100 transition-opacity duration-700"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                allowFullScreen
+              <video 
+                src="/demo_loop.mp4" 
+                autoPlay 
+                muted 
+                loop 
+                playsInline
+                poster="/preview_v1.1.png"
+                className="w-full h-full object-cover opacity-40 group-hover:opacity-80 transition-opacity duration-1000"
               />
 
-              {/* HUD corner accents for the video */}
-              <div className="absolute top-2 left-2 w-2 h-2 border-t border-l border-dezz-accent/30 pointer-events-none"></div>
-              <div className="absolute top-2 right-2 w-2 h-2 border-t border-r border-dezz-accent/30 pointer-events-none"></div>
-              <div className="absolute bottom-2 left-2 w-2 h-2 border-b border-l border-dezz-accent/30 pointer-events-none"></div>
-              <div className="absolute bottom-2 right-2 w-2 h-2 border-b border-r border-dezz-accent/30 pointer-events-none"></div>
+              {/* Information Overlay */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-transparent transition duration-700 z-10 pointer-events-none">
+                 <div className="text-center opacity-0 group-hover:opacity-100 transition duration-700 blur-[2px] group-hover:blur-0">
+                    <p className="text-[10px] tracking-[0.4em] font-bold text-dezz-accent uppercase">System Stream Active</p>
+                 </div>
+              </div>
+
+              {/* HUD corner accents */}
+              <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-dezz-accent/40 pointer-events-none z-20"></div>
+              <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-dezz-accent/40 pointer-events-none z-20"></div>
+              <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-dezz-accent/40 pointer-events-none z-20"></div>
+              <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-dezz-accent/40 pointer-events-none z-20"></div>
             </div>
 
             {/* FEATURES GRID */}
