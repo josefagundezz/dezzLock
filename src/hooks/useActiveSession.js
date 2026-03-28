@@ -27,7 +27,7 @@ export function useActiveSession(
         .from('active_sessions')
         .select('*')
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle();
         
       if (!error && data) {
          // Inherit session logic from DB
