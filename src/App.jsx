@@ -211,10 +211,11 @@ function App() {
       // For now, this approach works due to the simplicity of the components.
     }, 0);
     // Actually, let's refactor the lock in trigger to securely use the chosen settings
-    timer.start();
+    const newState = timer.start();
     setIsLocked(true);
     setGoalReached(false);
     goalNotifiedRef.current = false;
+    pushState('update', newState);
     
     // Attempt to set category for the record
     taskManager.setCurrentTaskId(null); // Assuming protocol is a fresh session without brain task unless auto-matched

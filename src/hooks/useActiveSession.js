@@ -20,7 +20,7 @@ export function useActiveSession(
   const isLockedRef = useRef(isLocked);
   const [remoteSession, setRemoteSession] = useState(null);
 
-  // Keep ref in sync
+  // Keep ref in sync for the realtime callback closure
   useEffect(() => {
     isLockedRef.current = isLocked;
   }, [isLocked]);
@@ -37,11 +37,10 @@ export function useActiveSession(
         .maybeSingle();
         
       if (!error && data) {
+         // There is a session in the cloud. We show the prompt first.
          setRemoteSession(data);
-         // IMPORTANT: We do NOT restore from localStorage if a remote session is detected,
-         // to allow the user to see the "JOIN" banner.
       } else {
-        // Fallback to localstorage only if no active remote session
+        // Only if cloud is empty, we check local storage
         const savedState = JSON.parse(localStorage.getItem('dezzSession'));
         if (savedState) {
           setProject(savedState.project);
@@ -73,7 +72,7 @@ export function useActiveSession(
           filter: `user_id=eq.${session.user.id}`,
         },
         (payload) => {
-          // If deleted remotely (e.g. clocked out from another device)
+          // 1. DELETE: Remote session was clocked out or discarded
           if (payload.eventType === 'DELETE') {
             setIsLocked(false);
             setProject('');
@@ -83,13 +82,30 @@ export function useActiveSession(
             taskManager.setCurrentTaskId(null);
             timer.reset();
             localStorage.removeItem('dezzSession');
+            setRemoteSession(null);
             return;
           }
 
-          // If inserted or updated remotely by *another* device
+          // 2. INSERT / UPDATE: Remote session modified
           const newRow = payload.new;
-          if (newRow && newRow.last_device_id !== DEVICE_ID.current) {
-            // Instead of auto-locking, we show the banner
+          if (!newRow) return;
+
+          // PROTECT AGAINST SELF-LOOPS
+          if (newRow.last_device_id === DEVICE_ID.current) return;
+
+          if (isLockedRef.current) {
+            // SILENT SYNC: We are already in a session, so we just mirror the change
+            setProject(newRow.project);
+            if (newRow.current_task_id) taskManager.setCurrentTaskId(newRow.current_task_id);
+            setInstructions(newRow.instructions || []);
+            setSelectedGoal(newRow.selected_goal || 0);
+            setSelectedCategory(newRow.selected_category || '');
+            
+            // Mirror timer math
+            timer.syncState(newRow.timer_state);
+            setRemoteSession(null); 
+          } else {
+            // PROMPT: We are idle, so we show the choice banner
             setRemoteSession(newRow);
           }
         }
@@ -136,7 +152,6 @@ export function useActiveSession(
   const ignoreRemote = useCallback(async () => {
     if (!session || !remoteSession) return;
     
-    // Save the remote session data before deleting it
     const st = remoteSession.timer_state;
     if (st && st.startTime) {
       const now = Date.now();

@@ -83,7 +83,6 @@ export function useTimer(profile) {
       totalPausedMs: newTotalPaused,
       pauseStartTime: null,
       breakCount,
-      last_device_id: null, // Just to keep shape
       lastPulseCheckTime: time
     };
   };
@@ -104,14 +103,14 @@ export function useTimer(profile) {
   };
 
   const syncState = (stateObj) => {
-    if (!stateObj) return;
-    setStartTime(stateObj.startTime || null);
+    if (!stateObj || !stateObj.startTime) return;
+    setStartTime(stateObj.startTime);
     setIsPaused(stateObj.isPaused || false);
     setTotalPausedMs(stateObj.totalPausedMs || 0);
     setPauseStartTime(stateObj.pauseStartTime || null);
     setBreakCount(stateObj.breakCount || 0);
     setLastPulseCheckTime(stateObj.lastPulseCheckTime || null);
-    if (stateObj.startTime) setNow(Date.now());
+    setNow(Date.now());
   };
 
   const getSyncState = () => ({
