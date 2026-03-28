@@ -178,7 +178,7 @@ function App() {
       taskManager.updateTaskCategory(finalTaskId, selectedCategory);
     }
 
-    timer.start();
+    const newState = timer.start();
     setIsLocked(true);
     setGoalReached(false);
     goalNotifiedRef.current = false;
@@ -192,11 +192,8 @@ function App() {
       selectedCategory,
     }));
     
-    // Defer pushing state to let React update `isLocked` first, OR pass timer overrides
-    // because `isLocked` is false currently.
-    // However, pushState reads `timer.getSyncState()`. `timer.start()` just updated it synchronously.
-    // The easiest way is `pushState` with a timeout or just letting React trigger an effect.
-    setTimeout(() => pushState(), 100);
+    // Push state immediately with the new timer data
+    pushState('update', newState);
   };
 
   const handleInitiateProtocol = () => {
@@ -226,15 +223,15 @@ function App() {
 
   // === PAUSE / RESUME ===
   const handlePause = () => {
-    timer.pause();
+    const newState = timer.pause();
     showToast(t.onBreak, 'streak');
-    setTimeout(() => pushState(), 100);
+    pushState('update', newState);
   };
 
   const handleResume = () => {
-    timer.resume();
+    const newState = timer.resume();
     notifications.send('dezzLock', 'Break over — back to focus! 🔒');
-    setTimeout(() => pushState(), 100);
+    pushState('update', newState);
   };
 
   // === CLOCK OUT ===

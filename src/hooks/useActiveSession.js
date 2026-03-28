@@ -86,7 +86,7 @@ export function useActiveSession(
 
           // If inserted or updated remotely by *another* device
           const newRow = payload.new;
-          if (newRow) {
+          if (newRow && newRow.last_device_id !== DEVICE_ID.current) {
             // Apply strictly if we are missing state or if it's an update
             setProject(newRow.project);
             if (newRow.current_task_id) taskManager.setCurrentTaskId(newRow.current_task_id);
@@ -123,6 +123,7 @@ export function useActiveSession(
       selected_category: selectedCategory,
       state: currentState.isPaused ? 'paused' : 'focusing',
       timer_state: currentState,
+      last_device_id: DEVICE_ID.current,
       updated_at: new Date().toISOString()
     });
   }, [session, project, taskManager.currentTaskId, instructions, selectedGoal, selectedCategory, timer]);

@@ -30,6 +30,15 @@ export function useTimer(profile) {
     setIsPaused(false);
     setPauseStartTime(null);
     setLastPulseCheckTime(time);
+    return {
+      startTime: time,
+      now: time,
+      totalPausedMs: 0,
+      breakCount: 0,
+      isPaused: false,
+      pauseStartTime: null,
+      lastPulseCheckTime: time
+    };
   };
 
   const restore = (savedStartTime) => {
@@ -42,21 +51,41 @@ export function useTimer(profile) {
   };
 
   const pause = () => {
+    const time = Date.now();
     setIsPaused(true);
-    setPauseStartTime(Date.now());
-    setBreakCount(prev => prev + 1);
+    setPauseStartTime(time);
+    const newBreakCount = breakCount + 1;
+    setBreakCount(newBreakCount);
+    return {
+      startTime,
+      isPaused: true,
+      totalPausedMs,
+      pauseStartTime: time,
+      breakCount: newBreakCount,
+      lastPulseCheckTime
+    };
   };
 
   const resume = () => {
+    const time = Date.now();
+    let newTotalPaused = totalPausedMs;
     if (pauseStartTime) {
-      const pauseDuration = Date.now() - pauseStartTime;
-      setTotalPausedMs(prev => prev + pauseDuration);
+      newTotalPaused += (time - pauseStartTime);
+      setTotalPausedMs(newTotalPaused);
     }
     setPauseStartTime(null);
     setIsPaused(false);
-    const currentTime = Date.now();
-    setNow(currentTime);
-    setLastPulseCheckTime(currentTime);
+    setNow(time);
+    setLastPulseCheckTime(time);
+    return {
+      startTime,
+      isPaused: false,
+      totalPausedMs: newTotalPaused,
+      pauseStartTime: null,
+      breakCount,
+      last_device_id: null, // Just to keep shape
+      lastPulseCheckTime: time
+    };
   };
 
   const acknowledgePulse = () => {
