@@ -38,6 +38,8 @@ export function useActiveSession(
         
       if (!error && data) {
          setRemoteSession(data);
+         // IMPORTANT: We do NOT restore from localStorage if a remote session is detected,
+         // to allow the user to see the "JOIN" banner.
       } else {
         // Fallback to localstorage only if no active remote session
         const savedState = JSON.parse(localStorage.getItem('dezzSession'));
@@ -87,17 +89,8 @@ export function useActiveSession(
           // If inserted or updated remotely by *another* device
           const newRow = payload.new;
           if (newRow && newRow.last_device_id !== DEVICE_ID.current) {
-            // Apply strictly if we are missing state or if it's an update
-            setProject(newRow.project);
-            if (newRow.current_task_id) taskManager.setCurrentTaskId(newRow.current_task_id);
-            setInstructions(newRow.instructions || []);
-            setSelectedGoal(newRow.selected_goal || 0);
-            setSelectedCategory(newRow.selected_category || '');
-            
-            // Sync the timer engine with the incoming state
-            timer.syncState(newRow.timer_state);
-            setIsLocked(true);
-            setRemoteSession(null); // Clear prompt if we just synced
+            // Instead of auto-locking, we show the banner
+            setRemoteSession(newRow);
           }
         }
       )
