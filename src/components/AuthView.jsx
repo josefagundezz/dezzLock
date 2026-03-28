@@ -58,12 +58,12 @@ export default function AuthView({ authView, setAuthView, loading, showPassword,
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-dezz-accent/20 to-transparent z-20"></div>
               
               <video 
-                src="/demo_loop.mp4" 
+                src="./demo_loop.mp4" 
                 autoPlay 
                 muted 
                 loop 
                 playsInline
-                poster="/preview_v1.1.png"
+                poster="./preview_v1.1.png"
                 className="w-full h-full object-cover opacity-40 group-hover:opacity-80 transition-opacity duration-1000"
               />
 
