@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 export function useTimer(profile) {
   const [startTime, setStartTime] = useState(null);
@@ -21,7 +21,7 @@ export function useTimer(profile) {
     return () => clearInterval(intervalRef.current);
   }, [startTime]);
 
-  const start = () => {
+  const start = useCallback(() => {
     const time = Date.now();
     setStartTime(time);
     setNow(time);
@@ -39,38 +39,49 @@ export function useTimer(profile) {
       pauseStartTime: null,
       lastPulseCheckTime: time
     };
-  };
+  }, []);
 
-  const restore = (savedStartTime) => {
+  const restore = useCallback((savedStartTime) => {
     setStartTime(savedStartTime);
     setNow(Date.now());
     setIsPaused(false);
     setTotalPausedMs(0);
     setBreakCount(0);
     setLastPulseCheckTime(savedStartTime);
-  };
+  }, []);
 
-  const pause = () => {
+  // We use refs for state that is needed inside callbacks to avoid stale closures
+  // while keeping the callback reference stable.
+  const stateRef = useRef({ startTime, isPaused, totalPausedMs, pauseStartTime, breakCount, lastPulseCheckTime });
+  useEffect(() => {
+    stateRef.current = { startTime, isPaused, totalPausedMs, pauseStartTime, breakCount, lastPulseCheckTime };
+  }, [startTime, isPaused, totalPausedMs, pauseStartTime, breakCount, lastPulseCheckTime]);
+
+  const pause = useCallback(() => {
     const time = Date.now();
+    const { startTime: st, totalPausedMs: tp, breakCount: bc, lastPulseCheckTime: lp } = stateRef.current;
+    
     setIsPaused(true);
     setPauseStartTime(time);
-    const newBreakCount = breakCount + 1;
-    setBreakCount(newBreakCount);
+    setBreakCount(prev => prev + 1);
+    
     return {
-      startTime,
+      startTime: st,
       isPaused: true,
-      totalPausedMs,
+      totalPausedMs: tp,
       pauseStartTime: time,
-      breakCount: newBreakCount,
-      lastPulseCheckTime
+      breakCount: bc + 1,
+      lastPulseCheckTime: lp
     };
-  };
+  }, []);
 
-  const resume = () => {
+  const resume = useCallback(() => {
     const time = Date.now();
-    let newTotalPaused = totalPausedMs;
-    if (pauseStartTime) {
-      newTotalPaused += (time - pauseStartTime);
+    const { startTime: st, totalPausedMs: tp, pauseStartTime: ps, breakCount: bc } = stateRef.current;
+    
+    let newTotalPaused = tp;
+    if (ps) {
+      newTotalPaused += (time - ps);
       setTotalPausedMs(newTotalPaused);
     }
     setPauseStartTime(null);
@@ -78,20 +89,20 @@ export function useTimer(profile) {
     setNow(time);
     setLastPulseCheckTime(time);
     return {
-      startTime,
+      startTime: st,
       isPaused: false,
       totalPausedMs: newTotalPaused,
       pauseStartTime: null,
-      breakCount,
+      breakCount: bc,
       lastPulseCheckTime: time
     };
-  };
+  }, []);
 
-  const acknowledgePulse = () => {
+  const acknowledgePulse = useCallback(() => {
     setLastPulseCheckTime(Date.now());
-  };
+  }, []);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setStartTime(null);
     setNow(null);
     setIsPaused(false);
@@ -99,10 +110,10 @@ export function useTimer(profile) {
     setPauseStartTime(null);
     setBreakCount(0);
     setLastPulseCheckTime(null);
-    clearInterval(intervalRef.current);
-  };
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }, []);
 
-  const syncState = (stateObj) => {
+  const syncState = useCallback((stateObj) => {
     if (!stateObj || !stateObj.startTime) return;
     setStartTime(stateObj.startTime);
     setIsPaused(stateObj.isPaused || false);
@@ -111,22 +122,23 @@ export function useTimer(profile) {
     setBreakCount(stateObj.breakCount || 0);
     setLastPulseCheckTime(stateObj.lastPulseCheckTime || null);
     setNow(Date.now());
-  };
+  }, []);
 
-  const getSyncState = () => ({
-    startTime,
-    isPaused,
-    totalPausedMs,
-    pauseStartTime,
-    breakCount,
-    lastPulseCheckTime
-  });
+  const getSyncState = useCallback(() => ({
+    startTime: stateRef.current.startTime,
+    isPaused: stateRef.current.isPaused,
+    totalPausedMs: stateRef.current.totalPausedMs,
+    pauseStartTime: stateRef.current.pauseStartTime,
+    breakCount: stateRef.current.breakCount,
+    lastPulseCheckTime: stateRef.current.lastPulseCheckTime
+  }), []);
 
   // Total elapsed since start (including paused time)
-  const totalElapsedMs = startTime && now ? now - startTime : 0;
+  const effectiveNow = now || Date.now();
+  const totalElapsedMs = startTime ? effectiveNow - startTime : 0;
 
   // Current pause duration (if currently paused)
-  const currentPauseMs = isPaused && pauseStartTime ? Date.now() - pauseStartTime : 0;
+  const currentPauseMs = isPaused && pauseStartTime ? effectiveNow - pauseStartTime : 0;
 
   // Actual focus time (excluding all breaks)
   const focusMs = totalElapsedMs - totalPausedMs - currentPauseMs;
@@ -140,12 +152,11 @@ export function useTimer(profile) {
   const totalSeconds = Math.max(0, Math.floor(totalElapsedMs / 1000));
 
   // PULSE CHECK LOGIC
-  const currentNow = now || Date.now();
   let isPulseChecking = false;
   let shouldAutoPause = false;
 
   if (!isPaused && profile?.pulse_enabled && profile?.pulse_frequency > 0 && lastPulseCheckTime) {
-    const timeSinceLastPulse = currentNow - lastPulseCheckTime;
+    const timeSinceLastPulse = effectiveNow - lastPulseCheckTime;
     const pulseThresholdMs = profile.pulse_frequency * 60 * 1000;
     const autoPauseThresholdMs = pulseThresholdMs + (5 * 60 * 1000); // 5 minutes after prompt
 
@@ -160,18 +171,17 @@ export function useTimer(profile) {
   useEffect(() => {
     if (shouldAutoPause) {
       pause();
-      // Optional: Since it auto-paused, next time it resumes, lastPulseCheckTime is reset.
     }
-  }, [shouldAutoPause]);
+  }, [shouldAutoPause, pause]);
 
-  const formatTime = (seconds) => {
+  const formatTime = useCallback((seconds) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
     const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${h}:${m}:${s}`;
-  };
+  }, []);
 
-  return {
+  return useMemo(() => ({
     startTime,
     isPaused,
     breakCount,
@@ -191,5 +201,22 @@ export function useTimer(profile) {
     reset,
     syncState,
     getSyncState,
-  };
+  }), [
+    startTime,
+    isPaused,
+    breakCount,
+    focusSeconds,
+    breakSeconds,
+    totalSeconds,
+    isPulseChecking,
+    acknowledgePulse,
+    formatTime,
+    start,
+    restore,
+    pause,
+    resume,
+    reset,
+    syncState,
+    getSyncState
+  ]);
 }

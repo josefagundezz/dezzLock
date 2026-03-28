@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../supabase';
 
 export function useActiveSession(
@@ -20,10 +20,22 @@ export function useActiveSession(
   const isLockedRef = useRef(isLocked);
   const [remoteSession, setRemoteSession] = useState(null);
 
-  // Keep ref in sync for the realtime callback closure
+  // Keep refs in sync for the realtime callback closure and pushState
   useEffect(() => {
     isLockedRef.current = isLocked;
   }, [isLocked]);
+
+  const timerRef = useRef(timer);
+  const taskManagerRef = useRef(taskManager);
+  const sessionRef = useRef(session);
+  const stateRefs = useRef({ project, instructions, selectedGoal, selectedCategory });
+
+  useEffect(() => { timerRef.current = timer; }, [timer]);
+  useEffect(() => { taskManagerRef.current = taskManager; }, [taskManager]);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+  useEffect(() => {
+    stateRefs.current = { project, instructions, selectedGoal, selectedCategory };
+  }, [project, instructions, selectedGoal, selectedCategory]);
 
   // INITIAL LOAD
   useEffect(() => {
@@ -37,27 +49,25 @@ export function useActiveSession(
         .maybeSingle();
         
       if (!error && data) {
-         // There is a session in the cloud. We show the prompt first.
          setRemoteSession(data);
       } else {
-        // Only if cloud is empty, we check local storage
         const savedState = JSON.parse(localStorage.getItem('dezzSession'));
         if (savedState) {
           setProject(savedState.project);
           setInstructions(savedState.instructions || []);
           setSelectedGoal(savedState.selectedGoal || 0);
           setSelectedCategory(savedState.selectedCategory || '');
-          taskManager.setCurrentTaskId(savedState.currentTaskId);
-          timer.restore(savedState.startTime);
+          taskManagerRef.current.setCurrentTaskId(savedState.currentTaskId);
+          timerRef.current.restore(savedState.startTime);
           setIsLocked(true);
         }
       }
     };
     
     loadRemoteSession();
-  }, [session]);
+  }, [session, setIsLocked, setProject, setInstructions, setSelectedGoal, setSelectedCategory]);
 
-  // REALTIME SUBSCRIPTION
+  // REALTIME SUBSCRIPTION - Optimized to avoid frequent reconnects
   useEffect(() => {
     if (!session) return;
 
@@ -72,40 +82,34 @@ export function useActiveSession(
           filter: `user_id=eq.${session.user.id}`,
         },
         (payload) => {
-          // 1. DELETE: Remote session was clocked out or discarded
           if (payload.eventType === 'DELETE') {
             setIsLocked(false);
             setProject('');
             setInstructions([]);
             setSelectedGoal(0);
             setSelectedCategory('');
-            taskManager.setCurrentTaskId(null);
-            timer.reset();
+            taskManagerRef.current.setCurrentTaskId(null);
+            timerRef.current.reset();
             localStorage.removeItem('dezzSession');
             setRemoteSession(null);
             return;
           }
 
-          // 2. INSERT / UPDATE: Remote session modified
           const newRow = payload.new;
           if (!newRow) return;
 
-          // PROTECT AGAINST SELF-LOOPS
           if (newRow.last_device_id === DEVICE_ID.current) return;
 
           if (isLockedRef.current) {
-            // SILENT SYNC: We are already in a session, so we just mirror the change
             setProject(newRow.project);
-            if (newRow.current_task_id) taskManager.setCurrentTaskId(newRow.current_task_id);
+            if (newRow.current_task_id) taskManagerRef.current.setCurrentTaskId(newRow.current_task_id);
             setInstructions(newRow.instructions || []);
             setSelectedGoal(newRow.selected_goal || 0);
             setSelectedCategory(newRow.selected_category || '');
             
-            // Mirror timer math
-            timer.syncState(newRow.timer_state);
+            timerRef.current.syncState(newRow.timer_state);
             setRemoteSession(null); 
           } else {
-            // PROMPT: We are idle, so we show the choice banner
             setRemoteSession(newRow);
           }
         }
@@ -115,42 +119,47 @@ export function useActiveSession(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, timer, taskManager, setIsLocked, setProject, setInstructions, setSelectedGoal, setSelectedCategory]);
+    // Removed timer/taskManager/setters from dependencies to keep subscription stable
+  }, [session, setIsLocked, setProject, setInstructions, setSelectedGoal, setSelectedCategory]);
 
   // ACTION METHODS TO PUSH STATE
   const pushState = useCallback(async (actionType = 'update', overrideTimerState = null) => {
-    if (!session || !isLockedRef.current) return;
+    const s = sessionRef.current;
+    // Allow push if we're locked OR if we're transitioning (overrideTimerState provided)
+    if (!s || (!isLockedRef.current && !overrideTimerState)) return;
 
-    const currentState = overrideTimerState || timer.getSyncState();
+    const currentState = overrideTimerState || timerRef.current.getSyncState();
+    const { project: p, instructions: inst, selectedGoal: sg, selectedCategory: sc } = stateRefs.current;
     
     await supabase.from('active_sessions').upsert({
-      user_id: session.user.id,
-      project,
-      current_task_id: taskManager.currentTaskId,
-      instructions,
-      selected_goal: selectedGoal,
-      selected_category: selectedCategory,
+      user_id: s.user.id,
+      project: p,
+      current_task_id: taskManagerRef.current.currentTaskId,
+      instructions: inst,
+      selected_goal: sg,
+      selected_category: sc,
       state: currentState.isPaused ? 'paused' : 'focusing',
       timer_state: currentState,
       last_device_id: DEVICE_ID.current,
       updated_at: new Date().toISOString()
     });
-  }, [session, project, taskManager.currentTaskId, instructions, selectedGoal, selectedCategory, timer]);
+  }, []);
 
   const syncRemote = useCallback((data) => {
     if (!data) return;
     setProject(data.project);
-    if (data.current_task_id) taskManager.setCurrentTaskId(data.current_task_id);
+    if (data.current_task_id) taskManagerRef.current.setCurrentTaskId(data.current_task_id);
     setInstructions(data.instructions || []);
     setSelectedGoal(data.selected_goal || 0);
     setSelectedCategory(data.selected_category || '');
-    timer.syncState(data.timer_state);
+    timerRef.current.syncState(data.timer_state);
     setIsLocked(true);
     setRemoteSession(null);
-  }, [setProject, setInstructions, setSelectedGoal, setSelectedCategory, setIsLocked, timer, taskManager]);
+  }, [setProject, setInstructions, setSelectedGoal, setSelectedCategory, setIsLocked]);
 
   const ignoreRemote = useCallback(async () => {
-    if (!session || !remoteSession) return;
+    const s = sessionRef.current;
+    if (!s || !remoteSession) return;
     
     const st = remoteSession.timer_state;
     if (st && st.startTime) {
@@ -165,7 +174,7 @@ export function useActiveSession(
       const totalSeconds = Math.max(0, Math.floor(totalElapsedMs / 1000));
 
       await supabase.from('sessions').insert({
-        user_id: session.user.id,
+        user_id: s.user.id,
         task_id: remoteSession.current_task_id,
         log_notes: `[AUTO-SAVED FROM REMOTE] ${remoteSession.project}`,
         start_time: new Date(st.startTime).toISOString(),
@@ -179,14 +188,21 @@ export function useActiveSession(
       });
     }
 
-    await supabase.from('active_sessions').delete().eq('user_id', session.user.id);
+    await supabase.from('active_sessions').delete().eq('user_id', s.user.id);
     setRemoteSession(null);
-  }, [session, remoteSession]);
+  }, [remoteSession]);
 
   const removeSession = useCallback(async () => {
-    if (!session) return;
-    await supabase.from('active_sessions').delete().eq('user_id', session.user.id);
-  }, [session]);
+    const s = sessionRef.current;
+    if (!s) return;
+    await supabase.from('active_sessions').delete().eq('user_id', s.user.id);
+  }, []);
 
-  return { pushState, removeSession, remoteSession, syncRemote, ignoreRemote };
+  return useMemo(() => ({
+    pushState,
+    removeSession,
+    remoteSession,
+    syncRemote,
+    ignoreRemote
+  }), [pushState, removeSession, remoteSession, syncRemote, ignoreRemote]);
 }
