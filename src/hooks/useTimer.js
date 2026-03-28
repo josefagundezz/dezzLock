@@ -74,6 +74,26 @@ export function useTimer(profile) {
     clearInterval(intervalRef.current);
   };
 
+  const syncState = (stateObj) => {
+    if (!stateObj) return;
+    setStartTime(stateObj.startTime || null);
+    setIsPaused(stateObj.isPaused || false);
+    setTotalPausedMs(stateObj.totalPausedMs || 0);
+    setPauseStartTime(stateObj.pauseStartTime || null);
+    setBreakCount(stateObj.breakCount || 0);
+    setLastPulseCheckTime(stateObj.lastPulseCheckTime || null);
+    if (stateObj.startTime) setNow(Date.now());
+  };
+
+  const getSyncState = () => ({
+    startTime,
+    isPaused,
+    totalPausedMs,
+    pauseStartTime,
+    breakCount,
+    lastPulseCheckTime
+  });
+
   // Total elapsed since start (including paused time)
   const totalElapsedMs = startTime && now ? now - startTime : 0;
 
@@ -141,5 +161,7 @@ export function useTimer(profile) {
     pause,
     resume,
     reset,
+    syncState,
+    getSyncState,
   };
 }

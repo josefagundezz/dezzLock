@@ -10,6 +10,7 @@ import { useStreak } from './hooks/useStreak';
 import { useNotifications } from './hooks/useNotifications';
 import { useProfile } from './hooks/useProfile';
 import { useProtocols } from './hooks/useProtocols';
+import { useActiveSession } from './hooks/useActiveSession';
 
 // Components
 import AuthView from './components/AuthView';
@@ -71,19 +72,22 @@ function App() {
     setToast({ show: true, msg, type });
   };
 
-  // === RESTORE SESSION FROM LOCALSTORAGE ===
-  useEffect(() => {
-    const savedState = JSON.parse(localStorage.getItem('dezzSession'));
-    if (savedState) {
-      setProject(savedState.project);
-      setInstructions(savedState.instructions || []);
-      setSelectedGoal(savedState.selectedGoal || 0);
-      setSelectedCategory(savedState.selectedCategory || '');
-      taskManager.setCurrentTaskId(savedState.currentTaskId);
-      timer.restore(savedState.startTime);
-      setIsLocked(true);
-    }
-  }, []);
+  // === RESTORE SESSION AND REALTIME SYNC ===
+  const { pushState, removeSession } = useActiveSession(
+    auth.session,
+    timer,
+    isLocked,
+    setIsLocked,
+    project,
+    setProject,
+    instructions,
+    setInstructions,
+    selectedGoal,
+    setSelectedGoal,
+    selectedCategory,
+    setSelectedCategory,
+    taskManager
+  );
 
   // === GOAL TRACKING ===
   useEffect(() => {
@@ -92,8 +96,12 @@ function App() {
       if (timer.focusSeconds >= goalSeconds) {
         setGoalReached(true);
         goalNotifiedRef.current = true;
-        notifications.send('dezzLock', `🎯 ${t.goalReached} — ${selectedGoal} minutes of focus completed!`);
         showToast(`🎯 ${t.goalReached}`, 'success');
+        
+        // Slight delay for system notification to bypass Focus Assist quirks
+        setTimeout(() => {
+          notifications.send('dezzLock', `🎯 ${t.goalReached} — ${selectedGoal} minutes of focus completed!`);
+        }, 1500);
       }
     }
   }, [timer.focusSeconds, isLocked, selectedGoal]);
@@ -183,6 +191,12 @@ function App() {
       selectedGoal,
       selectedCategory,
     }));
+    
+    // Defer pushing state to let React update `isLocked` first, OR pass timer overrides
+    // because `isLocked` is false currently.
+    // However, pushState reads `timer.getSyncState()`. `timer.start()` just updated it synchronously.
+    // The easiest way is `pushState` with a timeout or just letting React trigger an effect.
+    setTimeout(() => pushState(), 100);
   };
 
   const handleInitiateProtocol = () => {
@@ -214,11 +228,13 @@ function App() {
   const handlePause = () => {
     timer.pause();
     showToast(t.onBreak, 'streak');
+    setTimeout(() => pushState(), 100);
   };
 
   const handleResume = () => {
     timer.resume();
     notifications.send('dezzLock', 'Break over — back to focus! 🔒');
+    setTimeout(() => pushState(), 100);
   };
 
   // === CLOCK OUT ===
@@ -263,6 +279,7 @@ function App() {
     setMarkAsDone(false);
     timer.reset();
     localStorage.removeItem('dezzSession');
+    removeSession();
   };
 
   // === RENDER: SPLASH SCREEN (PREVENT FLICKER) ===

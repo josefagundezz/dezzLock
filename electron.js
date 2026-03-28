@@ -18,6 +18,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('dezzLock');
+  }
   createWindow();
 
   app.on('activate', () => {
