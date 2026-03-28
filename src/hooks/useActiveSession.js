@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabase';
 
 export function useActiveSession(
@@ -17,6 +17,13 @@ export function useActiveSession(
   taskManager
 ) {
   const DEVICE_ID = useRef(Math.random().toString(36).substring(2, 10));
+  const isLockedRef = useRef(isLocked);
+  const [remoteSession, setRemoteSession] = useState(null);
+
+  // Keep ref in sync
+  useEffect(() => {
+    isLockedRef.current = isLocked;
+  }, [isLocked]);
 
   // INITIAL LOAD
   useEffect(() => {
@@ -30,16 +37,7 @@ export function useActiveSession(
         .maybeSingle();
         
       if (!error && data) {
-         // Inherit session logic from DB
-         setProject(data.project);
-         if (data.current_task_id) taskManager.setCurrentTaskId(data.current_task_id);
-         setInstructions(data.instructions || []);
-         setSelectedGoal(data.selected_goal || 0);
-         setSelectedCategory(data.selected_category || '');
-
-         // sync timer math
-         timer.syncState(data.timer_state);
-         setIsLocked(true);
+         setRemoteSession(data);
       } else {
         // Fallback to localstorage only if no active remote session
         const savedState = JSON.parse(localStorage.getItem('dezzSession'));
@@ -99,6 +97,7 @@ export function useActiveSession(
             // Sync the timer engine with the incoming state
             timer.syncState(newRow.timer_state);
             setIsLocked(true);
+            setRemoteSession(null); // Clear prompt if we just synced
           }
         }
       )
@@ -111,7 +110,7 @@ export function useActiveSession(
 
   // ACTION METHODS TO PUSH STATE
   const pushState = useCallback(async (actionType = 'update', overrideTimerState = null) => {
-    if (!session || !isLocked) return;
+    if (!session || !isLockedRef.current) return;
 
     const currentState = overrideTimerState || timer.getSyncState();
     
@@ -126,12 +125,59 @@ export function useActiveSession(
       timer_state: currentState,
       updated_at: new Date().toISOString()
     });
-  }, [session, isLocked, project, taskManager.currentTaskId, instructions, selectedGoal, selectedCategory, timer]);
+  }, [session, project, taskManager.currentTaskId, instructions, selectedGoal, selectedCategory, timer]);
+
+  const syncRemote = useCallback((data) => {
+    if (!data) return;
+    setProject(data.project);
+    if (data.current_task_id) taskManager.setCurrentTaskId(data.current_task_id);
+    setInstructions(data.instructions || []);
+    setSelectedGoal(data.selected_goal || 0);
+    setSelectedCategory(data.selected_category || '');
+    timer.syncState(data.timer_state);
+    setIsLocked(true);
+    setRemoteSession(null);
+  }, [setProject, setInstructions, setSelectedGoal, setSelectedCategory, setIsLocked, timer, taskManager]);
+
+  const ignoreRemote = useCallback(async () => {
+    if (!session || !remoteSession) return;
+    
+    // Save the remote session data before deleting it
+    const st = remoteSession.timer_state;
+    if (st && st.startTime) {
+      const now = Date.now();
+      const totalElapsedMs = now - st.startTime;
+      const currentPauseMs = st.isPaused && st.pauseStartTime ? now - st.pauseStartTime : 0;
+      const breakMs = (st.totalPausedMs || 0) + currentPauseMs;
+      const focusMs = totalElapsedMs - breakMs;
+      
+      const focusSeconds = Math.max(0, Math.floor(focusMs / 1000));
+      const breakSeconds = Math.max(0, Math.floor(breakMs / 1000));
+      const totalSeconds = Math.max(0, Math.floor(totalElapsedMs / 1000));
+
+      await supabase.from('sessions').insert({
+        user_id: session.user.id,
+        task_id: remoteSession.current_task_id,
+        log_notes: `[AUTO-SAVED FROM REMOTE] ${remoteSession.project}`,
+        start_time: new Date(st.startTime).toISOString(),
+        end_time: new Date().toISOString(),
+        duration_seconds: totalSeconds,
+        focus_seconds: focusSeconds,
+        break_seconds: breakSeconds,
+        break_count: st.breakCount || 0,
+        goal_minutes: remoteSession.selected_goal || 0,
+        goal_reached: focusSeconds >= (remoteSession.selected_goal * 60)
+      });
+    }
+
+    await supabase.from('active_sessions').delete().eq('user_id', session.user.id);
+    setRemoteSession(null);
+  }, [session, remoteSession]);
 
   const removeSession = useCallback(async () => {
     if (!session) return;
     await supabase.from('active_sessions').delete().eq('user_id', session.user.id);
   }, [session]);
 
-  return { pushState, removeSession };
+  return { pushState, removeSession, remoteSession, syncRemote, ignoreRemote };
 }

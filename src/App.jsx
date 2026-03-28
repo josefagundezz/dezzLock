@@ -24,7 +24,7 @@ import StatsModal from './components/StatsModal';
 import ProfileView from './components/ProfileView';
 import ProtocolsModal from './components/ProtocolsModal';
 import StandupModal from './components/StandupModal';
-import { Crosshair, Play, Hourglass } from 'lucide-react';
+import { Crosshair, Play, Hourglass, Smartphone, Trash2 } from 'lucide-react';
 
 function App() {
   // === HOOKS ===
@@ -73,7 +73,7 @@ function App() {
   };
 
   // === RESTORE SESSION AND REALTIME SYNC ===
-  const { pushState, removeSession } = useActiveSession(
+  const { pushState, removeSession, remoteSession, syncRemote, ignoreRemote } = useActiveSession(
     auth.session,
     timer,
     isLocked,
@@ -338,23 +338,58 @@ function App() {
       {/* MAIN CONTAINER */}
       <main className="z-10 w-full max-w-2xl flex-grow flex flex-col justify-center p-6">
         {!isLocked ? (
-          <IdleView
-            project={project}
-            setProject={setProject}
-            instructions={instructions}
-            setInstructions={setInstructions}
-            tasks={taskManager.tasks}
-            currentTaskId={taskManager.currentTaskId}
-            profile={profile}
-            selectedGoal={selectedGoal}
-            setSelectedGoal={setSelectedGoal}
-            selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
-            onLockIn={handleLockIn}
-            onOpenBrain={() => setShowBrain(true)}
-            onOpenProtocols={() => setShowProtocols(true)}
-            t={t}
-          />
+          <div className="flex flex-col gap-6">
+            {/* REMOTE SESSION BANNER */}
+            {remoteSession && (
+              <div className="bg-dezz-accent/5 border border-dezz-accent/30 p-4 rounded-sm flex items-center justify-between animate-in slide-in-from-top duration-500">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-dezz-accent/10 rounded-full flex items-center justify-center">
+                    <Smartphone size={20} className="text-dezz-accent" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-dezz-accent font-bold uppercase tracking-widest">REMOTE SESSION DETECTED</p>
+                    <p className="text-white font-space font-bold uppercase">{remoteSession.project}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => syncRemote(remoteSession)}
+                    className="bg-dezz-accent text-dezz-bg px-4 py-2 font-mono font-bold text-[10px] uppercase hover:bg-white transition"
+                  >
+                    JOIN SESSION
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      await ignoreRemote();
+                      showToast("REMOTE SESSION SAVED & CLOSED", "success");
+                    }}
+                    className="border border-red-900/50 text-red-500 p-2 hover:bg-red-500 hover:text-white transition"
+                    title="SAVE & DISCARD REMOTE SESSION"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            <IdleView
+              project={project}
+              setProject={setProject}
+              instructions={instructions}
+              setInstructions={setInstructions}
+              tasks={taskManager.tasks}
+              currentTaskId={taskManager.currentTaskId}
+              profile={profile}
+              selectedGoal={selectedGoal}
+              setSelectedGoal={setSelectedGoal}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+              onLockIn={handleLockIn}
+              onOpenBrain={() => setShowBrain(true)}
+              onOpenProtocols={() => setShowProtocols(true)}
+              t={t}
+            />
+          </div>
         ) : (
           <LockedView
             project={project}
